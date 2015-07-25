@@ -1,0 +1,18 @@
+[
+  {
+    "ParameterKey": "KeyName",
+    "ParameterValue": "YOUR_EC2_KEY_PAIR"
+  },
+  {
+    "ParameterKey": "Domain",
+    "ParameterValue": "YOUR_DOMAIN_NAME"
+  },
+  {
+    "ParameterKey": "VPCAvailabilityZone1",
+    "ParameterValue": "eu-west-1a"
+  },
+  {
+    "ParameterKey": "VPCAvailabilityZone2",
+    "ParameterValue": "eu-west-1c"
+  }
+]
