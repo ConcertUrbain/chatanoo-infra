@@ -1,0 +1,223 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+
+  "Description": "Create CDN for static resources",
+
+  "Parameters": {
+    "DomainName": {
+      "Description": "The name of the domain used to host your Chatanoo",
+      "Type": "String",
+      "MinLength": "1",
+      "MaxLength": "255"
+    },
+    "PublicHostedZoneId": {
+      "Description": "The Public Hosted Zone Id of the domain used to host your Chatanoo",
+      "Type": "String",
+      "MinLength": "1",
+      "MaxLength": "255"
+    },
+    "ProjectName": {
+      "Description": "The name of the Chatanoo Project that will be used to tag all resources",
+      "Type": "String",
+      "Default": "Default"
+    },
+    "AdministratorsGroupName": {
+      "Description": "Administrators Group Name in IAM",
+      "Type": "String",
+      "Default": "Default"
+    },
+    "ManagersGroupName": {
+      "Description": "Managers Group Name in IAM",
+      "Type": "String",
+      "Default": "Default"
+    },
+    "DevelopersGroupName": {
+      "Description": "Developers Group Name in IAM",
+      "Type": "String",
+      "Default": "Default"
+    }
+  },
+
+  "Mappings": {
+
+  },
+
+  "Resources": {
+
+    "CDNBucket": {
+      "Type" : "AWS::S3::Bucket",
+      "Properties" : {
+        "Tags": [{
+          "Key": "chatanoo:client",
+          "Value": { "Ref": "ProjectName" }
+        }, {
+          "Key": "chatanoo:project",
+          "Value": "CDN"
+        }, {
+          "Key": "chatanoo:environment",
+          "Value": "Production"
+        }, {
+          "Key": "chatanoo:access",
+          "Value": "Private"
+        }, {
+          "Key": "chatanoo:region",
+          "Value": { "Ref": "AWS::Region" }
+        }]
+      }
+    },
+
+    "CDNCloudFrontDistribution": {
+      "Type" : "AWS::CloudFront::Distribution",
+      "Properties" : {
+        "DistributionConfig" : {
+          "Origins" : [ {
+            "DomainName": { "Fn::Join": ["", [{ "Ref": "CDNBucket" }, ".s3.amazonaws.com"]] },
+            "Id" : { "Fn::Join": ["-", ["CDNS3Origin", { "Ref": "CDNBucket" }]] },
+            "S3OriginConfig" : {
+              "OriginAccessIdentity" : ""
+            }
+          }],
+          "Enabled" : "true",
+          "Comment" : { "Fn::Join": [" ", ["Chatanoo", { "Ref": "ProjectName" }, " distribution for CDN"]] },
+          "Aliases" : [ 
+            { "Fn::Join": ["", ["cdn.", { "Ref": "DomainName" }]] } 
+          ],
+          "DefaultCacheBehavior" : {
+            "AllowedMethods" : [ "GET", "HEAD" ],  
+            "TargetOriginId" : { "Fn::Join": ["-", ["CDNS3Origin", { "Ref": "CDNBucket" }]] },
+            "ForwardedValues" : {
+              "QueryString" : "false",
+              "Cookies" : { "Forward" : "none" }
+            },
+            "ViewerProtocolPolicy" : "allow-all"
+          }
+        }
+      }
+    },
+
+    "CDNDNSRecord" : {
+      "Type": "AWS::Route53::RecordSet",
+      "Properties": {
+         "HostedZoneId": { "Ref": "PublicHostedZoneId" },
+         "Comment": "DNS Record for CDN",
+         "Name": { "Fn::Join": ["", ["cdn.", { "Ref": "DomainName" }, "."]] } ,
+         "Type": "CNAME",
+         "TTL": "300",
+         "ResourceRecords" : [
+            { "Fn::GetAtt" : [ "CDNCloudFrontDistribution", "DomainName" ] }
+         ]
+      }
+    },
+  	
+    "CDNAdministratorsPolicy": {
+      "Type": "AWS::IAM::Policy",
+      "Properties": {
+        "PolicyName": "CDNAdministratorsPolicy",
+        "Groups": [{ "Ref": "AdministratorsGroupName" }],
+        "PolicyDocument": {
+          "Version" : "2012-10-17",
+          "Statement": [ {
+            "Sid": "FullAccessCDNBucketForThisProject",
+            "Effect": "Allow",
+            "Action": [
+              "s3:*"
+            ],
+            "Resource": [
+              { "Fn::Join": ["", ["arn:aws:s3:::", { "Ref": "CDNBucket" }]] }
+            ]
+          }, {
+            "Sid": "FullAccessCDNDistributionForThisProject",
+            "Effect": "Allow",
+            "Action": [
+              "cloudfront:*"
+            ],
+            "Resource": [
+              "*"
+            ]
+          } ]
+        }
+      }
+    },
+
+    "CDNManagersPolicy": {
+      "Type": "AWS::IAM::Policy",
+      "Properties": {
+        "PolicyName": "CDNManagersPolicy",
+        "Groups": [{ "Ref": "ManagersGroupName" }],
+        "PolicyDocument": {
+          "Version" : "2012-10-17",
+          "Statement": [ {
+            "Sid": "ReadOnlyCDNBucketForThisProject",
+            "Effect": "Allow",
+            "Action": [
+              "s3:List*",
+              "s3:Get*"
+            ],
+            "Resource": [
+              { "Fn::Join": ["", ["arn:aws:s3:::", { "Ref": "CDNBucket" }]] }
+            ]
+          }, {
+            "Sid": "ReadOnlyCDNDistributionForThisProject",
+            "Effect": "Allow",
+            "Action": [
+              "cloudfront:List*",
+              "cloudfront:Get*"
+            ],
+            "Resource": [
+              "*"
+            ]
+          } ]
+        }
+      }
+    },
+
+    "CDNManagersPolicy": {
+      "Type": "AWS::IAM::Policy",
+      "Properties": {
+        "PolicyName": "CDNManagersPolicy",
+        "Groups": [{ "Ref": "ManagersGroupName" }],
+        "PolicyDocument": {
+          "Version" : "2012-10-17",
+          "Statement": [ {
+            "Sid": "ReadAndWriteCDNBucketForThisProject",
+            "Effect": "Allow",
+            "Action": [
+              "s3:List*",
+              "s3:Get*",
+              "s3:*Object*"
+            ],
+            "Resource": [
+              { "Fn::Join": ["", ["arn:aws:s3:::", { "Ref": "CDNBucket" }]] }
+            ]
+          }, {
+            "Sid": "ReadOnlyCDNDistributionForThisProject",
+            "Effect": "Allow",
+            "Action": [
+              "cloudfront:List*",
+              "cloudfront:Get*"
+            ],
+            "Resource": [
+              "*"
+            ]
+          } ]
+        }
+      }
+    }
+  },
+
+  "Outputs": {
+    "CDNBucket": {
+      "Description": "S3 Bucket to store CDN resources",
+      "Value": {
+        "Ref": "CDNBucket"
+      }
+    },
+    "CDNURL": {
+      "Description": "URL for the CDN",
+      "Value": { 
+        "Fn::Join": ["", ["cdn.", { "Ref": "DomainName" }]] 
+      } 
+    }
+  }
+
+}

@@ -10,10 +10,25 @@
       "Type": "String",
       "Default": "chatanoo-cloudformation"
     },
+    "IAMTemplateKey": {
+      "Description": "The key of the template for the IAM substack",
+      "Type": "String",
+      "Default": "templates/chatanoo-iam.cfn.json"
+    },
     "VPCTemplateKey": {
       "Description": "The key of the template for the VPC scaffold substack",
       "Type": "String",
       "Default": "templates/chatanoo-vpc.cfn.json"
+    },
+    "Route53TemplateKey": {
+      "Description": "The key of the template for the Route53 substack",
+      "Type": "String",
+      "Default": "templates/chatanoo-route53.cfn.json"
+    },
+    "CDNTemplateKey": {
+      "Description": "The key of the template for the CDN substack",
+      "Type": "String",
+      "Default": "templates/chatanoo-cdn.cfn.json"
     },
 
     "KeyName": {
@@ -69,6 +84,15 @@
   },
 
   "Resources": {
+    "IAMScaffold" : {
+      "Type" : "AWS::CloudFormation::Stack",
+      "Properties" : {
+        "TemplateURL" : { "Fn::Join" : ["", [ "http://", { "Ref" : "CloudFormationBucket" }, ".s3.amazonaws.com/", { "Ref" : "IAMTemplateKey" }]]},
+        "Parameters" : {
+          "ProjectName": { "Ref" : "AWS::StackName" }
+        }
+      }
+    },
     "VPCScaffold" : {
       "Type" : "AWS::CloudFormation::Stack",
       "Properties" : {
@@ -80,13 +104,49 @@
           "NATInstanceType" : { "Ref" : "NATInstanceType"},
           "VPCAvailabilityZone1": { "Ref" : "VPCAvailabilityZone1" },
           "VPCAvailabilityZone2": { "Ref" : "VPCAvailabilityZone2" },
-          "ProjectName": { "Ref" : "AWS::StackName" }
+          "ProjectName": { "Ref" : "AWS::StackName" },
+          "AdministratorsGroupName": { "Fn::GetAtt" : [ "IAMScaffold", "Outputs.AdministratorsGroupName" ]},
+          "ManagersGroupName": { "Fn::GetAtt" : [ "IAMScaffold", "Outputs.ManagersGroupName" ]},
+          "DevelopersGroupName": { "Fn::GetAtt" : [ "IAMScaffold", "Outputs.DevelopersGroupName" ]}
+        }
+      }
+    },
+    "Route53" : {
+      "Type" : "AWS::CloudFormation::Stack",
+      "Properties" : {
+        "TemplateURL" : { "Fn::Join" : ["", [ "http://", { "Ref" : "CloudFormationBucket" }, ".s3.amazonaws.com/", { "Ref" : "Route53TemplateKey" }]]},
+        "Parameters" : {
+          "DomainName": { "Ref" : "Domain" },
+          "VPCId": { "Fn::GetAtt" : [ "VPCScaffold", "Outputs.VPCId" ]},
+          "ProjectName": { "Ref" : "AWS::StackName" },
+          "AdministratorsGroupName": { "Fn::GetAtt" : [ "IAMScaffold", "Outputs.AdministratorsGroupName" ]},
+          "ManagersGroupName": { "Fn::GetAtt" : [ "IAMScaffold", "Outputs.ManagersGroupName" ]},
+          "DevelopersGroupName": { "Fn::GetAtt" : [ "IAMScaffold", "Outputs.DevelopersGroupName" ]}
+        }
+      }
+    },
+    "CDN" : {
+      "Type" : "AWS::CloudFormation::Stack",
+      "Properties" : {
+        "TemplateURL" : { "Fn::Join" : ["", [ "http://", { "Ref" : "CloudFormationBucket" }, ".s3.amazonaws.com/", { "Ref" : "CDNTemplateKey" }]]},
+        "Parameters" : {
+          "DomainName": { "Ref" : "Domain" },
+          "PublicHostedZoneId": { "Fn::GetAtt" : [ "Route53", "Outputs.PublicHostedZoneId" ]},
+          "ProjectName": { "Ref" : "AWS::StackName" },
+          "AdministratorsGroupName": { "Fn::GetAtt" : [ "IAMScaffold", "Outputs.AdministratorsGroupName" ]},
+          "ManagersGroupName": { "Fn::GetAtt" : [ "IAMScaffold", "Outputs.ManagersGroupName" ]},
+          "DevelopersGroupName": { "Fn::GetAtt" : [ "IAMScaffold", "Outputs.DevelopersGroupName" ]}
         }
       }
     }
   },
 
   "Outputs": {
-    
+    "CDNURL": {
+      "Description": "URL for the CDN",
+      "Value": { 
+        "Fn::GetAtt" : [ "CDN", "Outputs.CDNURL" ]
+      }
+    }
   }
 }

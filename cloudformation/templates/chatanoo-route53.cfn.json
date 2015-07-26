@@ -1,0 +1,196 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+
+  "Description": "Create the domain to host your Chatanoo in Route53",
+
+  "Parameters": {
+    "DomainName": {
+      "Description": "The name of the domain used to host your Chatanoo",
+      "Type": "String",
+      "MinLength": "1",
+      "MaxLength": "255"
+    },
+    "VPCId": {
+      "Description": "A VPC ID.",
+      "Type": "String",
+      "MinLength": "1",
+      "MaxLength": "255"
+    },
+    "ProjectName": {
+      "Description": "The name of the Chatanoo Project that will be used to tag all resources",
+      "Type": "String",
+      "Default": "Default"
+    },
+    "AdministratorsGroupName": {
+      "Description": "Administrators Group Name in IAM",
+      "Type": "String",
+      "Default": "Default"
+    },
+    "ManagersGroupName": {
+      "Description": "Managers Group Name in IAM",
+      "Type": "String",
+      "Default": "Default"
+    },
+    "DevelopersGroupName": {
+      "Description": "Developers Group Name in IAM",
+      "Type": "String",
+      "Default": "Default"
+    }
+  },
+
+  "Mappings": {
+
+  },
+
+  "Resources": {
+  	"PublicDNS": {
+      "Type": "AWS::Route53::HostedZone",
+      "Properties": {
+        "HostedZoneConfig": {
+          "Comment": { "Fn::Join" : ["", ["[Chatanoo] Public Hosted zone for ", { "Ref" : "ProjectName" }]] }
+        },
+        "Name": { "Ref": "DomainName" },
+        "HostedZoneTags" : [{
+          "Key": "chatanoo:client",
+          "Value": { "Ref": "ProjectName" }
+        }, {
+          "Key": "chatanoo:project",
+          "Value": "DNS"
+        }, {
+          "Key": "chatanoo:environment",
+          "Value": "Infra"
+        }, {
+          "Key": "chatanoo:access",
+          "Value": "Public"
+        }, {
+          "Key": "chatanoo:region",
+          "Value": { "Ref": "AWS::Region" }
+        }]
+      }
+    },
+    "PrivateDNS": {
+      "Type": "AWS::Route53::HostedZone",
+      "Properties": {
+        "HostedZoneConfig": {
+          "Comment": { "Fn::Join" : ["", ["[Chatanoo] Private Hosted zone for ", { "Ref" : "ProjectName" }]] }
+        },
+        "Name": { "Ref": "DomainName" },
+        "VPCs": [{
+          "VPCId": { "Ref": "VPCId" },
+          "VPCRegion": { "Ref": "AWS::Region" }
+        }],
+        "HostedZoneTags" : [{
+          "Key": "chatanoo:client",
+          "Value": { "Ref": "ProjectName" }
+        }, {
+          "Key": "chatanoo:project",
+          "Value": "DNS"
+        }, {
+          "Key": "chatanoo:environment",
+          "Value": "Infra"
+        }, {
+          "Key": "chatanoo:access",
+          "Value": "Private"
+        }, {
+          "Key": "chatanoo:region",
+          "Value": { "Ref": "AWS::Region" }
+        }]
+      }
+    },
+
+    "Route53AdministratorsPolicy": {
+      "Type": "AWS::IAM::Policy",
+      "Properties": {
+        "PolicyName": "Route53AdministratorsPolicy",
+        "Groups": [{ "Ref": "AdministratorsGroupName" }],
+        "PolicyDocument": {
+          "Version" : "2012-10-17",
+          "Statement": [ {
+            "Sid": "FullAccessRoute53ForThisProject",
+            "Effect": "Allow",
+            "Action": [
+              "route53:*"
+            ],
+            "Resource": [
+              { "Fn::Join": ["/", ["arn:aws:route53:::hostedzone", { "Ref": "PublicDNS" }]] },
+              { "Fn::Join": ["/", ["arn:aws:route53:::hostedzone", { "Ref": "PrivateDNS" }]] }
+            ]
+          } ]
+        }
+      }
+    },
+
+    "Route53ManagersPolicy": {
+      "Type": "AWS::IAM::Policy",
+      "Properties": {
+        "PolicyName": "Route53ManagersPolicy",
+        "Groups": [{ "Ref": "ManagersGroupName" }],
+        "PolicyDocument": {
+          "Version" : "2012-10-17",
+          "Statement": [ {
+            "Sid": "ReadOnlyRoute53ForThisProject",
+            "Effect": "Allow",
+            "Action": [
+              "route53:List*",
+              "route53:Get*"
+            ],
+            "Resource": [
+              { "Fn::Join": ["/", ["arn:aws:route53:::hostedzone", { "Ref": "PublicDNS" }]] },
+              { "Fn::Join": ["/", ["arn:aws:route53:::hostedzone", { "Ref": "PrivateDNS" }]] }
+            ]
+          } ]
+        }
+      }
+    },
+
+    "Route53ManagersPolicy": {
+      "Type": "AWS::IAM::Policy",
+      "Properties": {
+        "PolicyName": "Route53ManagersPolicy",
+        "Groups": [{ "Ref": "ManagersGroupName" }],
+        "PolicyDocument": {
+          "Version" : "2012-10-17",
+          "Statement": [ {
+            "Sid": "ReadOnlyRoute53ForThisProject",
+            "Effect": "Allow",
+            "Action": [
+              "route53:List*",
+              "route53:Get*"
+            ],
+            "Resource": [
+              { "Fn::Join": ["/", ["arn:aws:route53:::hostedzone", { "Ref": "PublicDNS" }]] },
+              { "Fn::Join": ["/", ["arn:aws:route53:::hostedzone", { "Ref": "PrivateDNS" }]] }
+            ]
+          }, {
+            "Sid": "AllowChangeRecordsSetOfRoute53ForThisProject",
+            "Effect": "Allow",
+            "Action": [
+              "route53:ChangeResourceRecordSets"
+            ],
+            "Resource": [
+              { "Fn::Join": ["/", ["arn:aws:route53:::hostedzone", { "Ref": "PublicDNS" }]] },
+              { "Fn::Join": ["/", ["arn:aws:route53:::hostedzone", { "Ref": "PrivateDNS" }]] }
+            ]
+          } ]
+        }
+      }
+    }
+  },
+
+  "Outputs": {
+    "PublicHostedZoneId": {
+      "Description": "Id of the Public Hosted Zone created",
+      "Value": {
+        "Ref": "PublicDNS"
+      }
+    },
+    "PrivateHostedZoneId": {
+      "Description": "Id of the Private Hosted Zone created",
+      "Value": {
+        "Ref": "PrivateDNS"
+      }
+    }
+  }
+
+
+}

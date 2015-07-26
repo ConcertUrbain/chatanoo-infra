@@ -1,4 +1,3 @@
-
 {
   "AWSTemplateFormatVersion": "2010-09-09",
 
@@ -53,6 +52,21 @@
     },
     "ProjectName": {
       "Description": "The name of the Chatanoo Project that will be used to tag all resources in the VPC",
+      "Type": "String",
+      "Default": "Default"
+    },
+    "AdministratorsGroupName": {
+      "Description": "Administrators Group Name in IAM",
+      "Type": "String",
+      "Default": "Default"
+    },
+    "ManagersGroupName": {
+      "Description": "Managers Group Name in IAM",
+      "Type": "String",
+      "Default": "Default"
+    },
+    "DevelopersGroupName": {
+      "Description": "Developers Group Name in IAM",
       "Type": "String",
       "Default": "Default"
     }
@@ -981,6 +995,118 @@
             "Fn::FindInMap": ["Region2VpcCidr", { "Ref" : "AWS::Region" }, "PrivateSubnet2Cidr"]
           }
         }]
+      }
+    },
+
+    "VPCAdministratorsPolicy": {
+      "Type": "AWS::IAM::Policy",
+      "Properties": {
+        "PolicyName": "VPCAdministratorsPolicy",
+        "Groups": [{ "Ref": "AdministratorsGroupName" }],
+        "PolicyDocument": {
+          "Version" : "2012-10-17",
+          "Statement": [ {
+            "Sid": "FullAccessInVPC",
+            "Effect": "Allow",
+            "Action": [
+              "ec2:*Vpc*",
+              "ec2:*Subnet*",
+              "ec2:*Gateway*",
+              "ec2:*Vpn*",
+              "ec2:*Route*",
+              "ec2:*Address*",
+              "ec2:*SecurityGroup*",
+              "ec2:*NetworkAcl*",
+              "ec2:*DhcpOptions*",
+              "ec2:RunInstances",
+              "ec2:StopInstances",
+              "ec2:StartInstances",
+              "ec2:TerminateInstances",
+              "ec2:Describe*"
+            ],
+            "Resource": "*",
+            "Condition": {
+              "StringEquals": {
+                "ec2:Vpc": { "Fn::Join": ["", ["arn:aws:ec2:", { "Ref": "AWS::Region" }, ":", { "Ref": "AWS::AccountId" }, ":vpc/", { "Ref": "VPC" }]] }
+              }
+            }
+          } ]
+        }
+      }
+    },
+
+    "VPCManagersPolicy": {
+      "Type": "AWS::IAM::Policy",
+      "Properties": {
+        "PolicyName": "VPCManagersPolicy",
+        "Groups": [{ "Ref": "ManagersGroupName" }],
+        "PolicyDocument": {
+          "Version" : "2012-10-17",
+          "Statement": [ {
+            "Sid": "ReadOnlyInVPC",
+            "Effect": "Allow",
+            "Action": [
+              "ec2:DescribeVpcs",
+              "ec2:DescribeSubnets",
+              "ec2:DescribeInternetGateways",
+              "ec2:DescribeCustomerGateways",
+              "ec2:DescribeVpnGateways",
+              "ec2:DescribeVpnConnections",
+              "ec2:DescribeRouteTables",
+              "ec2:DescribeAddresses",
+              "ec2:DescribeSecurityGroups",
+              "ec2:DescribeNetworkAcls",
+              "ec2:DescribeDhcpOptions",
+              "ec2:DescribeTags",
+              "ec2:DescribeInstances"
+            ],
+            "Resource": "*",
+            "Condition": {
+              "StringEquals": {
+                "ec2:Vpc": { "Fn::Join": ["", ["arn:aws:ec2:", { "Ref": "AWS::Region" }, ":", { "Ref": "AWS::AccountId" }, ":vpc/", { "Ref": "VPC" }]] }
+              }
+            }
+          } ]
+        }
+      }
+    },
+
+    "VPCDevelopersPolicy": {
+      "Type": "AWS::IAM::Policy",
+      "Properties": {
+        "PolicyName": "VPCDevelopersPolicy",
+        "Groups": [{ "Ref": "DevelopersGroupName" }],
+        "PolicyDocument": {
+          "Version" : "2012-10-17",
+          "Statement": [ {
+            "Sid": "AllowRunInstanceInVPC",
+            "Effect": "Allow",
+            "Action": [
+              "ec2:RunInstances",
+              "ec2:StopInstances",
+              "ec2:StartInstances",
+              "ec2:TerminateInstances",
+              "ec2:Describe*"
+            ],
+            "Resource": "*",
+            "Condition": {
+              "StringEquals": {
+                "ec2:Vpc": { "Fn::Join": ["", ["arn:aws:ec2:", { "Ref": "AWS::Region" }, ":", { "Ref": "AWS::AccountId" }, ":vpc/", { "Ref": "VPC" }]] }
+              }
+            }
+          }, {
+            "Sid": "DenyNatAndBastion",
+            "Effect": "Deny",
+            "Action": [
+              "ec2:StopInstances",
+              "ec2:TerminateInstances"
+            ],
+            "Resource": [
+              { "Fn::Join": ["", ["arn:aws:ec2:", { "Ref": "AWS::Region" }, ":", { "Ref": "AWS::AccountId" }, ":instance/", { "Ref": "BastionHost" }]] },
+              { "Fn::Join": ["", ["arn:aws:ec2:", { "Ref": "AWS::Region" }, ":", { "Ref": "AWS::AccountId" }, ":instance/", { "Ref": "NATDevice" }]] }
+            ]
+          } ]
+        }
       }
     }
   },

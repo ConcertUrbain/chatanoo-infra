@@ -1,0 +1,158 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+
+  "Description": "Create default Groups, Roles and Users for Chatanoo in IAM",
+
+  "Parameters": {
+    "ProjectName": {
+      "Description": "The name of the Chatanoo Project that will be used to tag all resources or Prefix",
+      "Type": "String",
+      "Default": "Default"
+    }
+  },
+
+  "Mappings": {
+
+  },
+
+  "Resources": {
+  	"Administrators": {
+      "Type": "AWS::IAM::Group",
+      "Properties": {
+        "Path": { "Fn::Join": ["", ["/", { "Ref": "ProjectName" }, "/"]] }
+      }
+    },
+    "Managers": {
+      "Type": "AWS::IAM::Group",
+      "Properties": {
+        "Path": { "Fn::Join": ["", ["/", { "Ref": "ProjectName" }, "/"]] }
+      }
+    },
+    "Developers": {
+      "Type": "AWS::IAM::Group",
+      "Properties": {
+        "Path": { "Fn::Join": ["", ["/", { "Ref": "ProjectName" }, "/"]] }
+      }
+    },
+
+    "IAMAdministratorsPolicy": {
+      "Type": "AWS::IAM::Policy",
+      "Properties": {
+        "PolicyName": "IAMAdministratorsPolicy",
+        "Groups": [{ "Ref": "Administrators" }],
+        "PolicyDocument": {
+          "Version" : "2012-10-17",
+          "Statement": [ {
+            "Sid": "FullAccessIAMForThisProject",
+            "Effect": "Allow",
+            "Action": [
+              "iam:*"
+            ],
+            "Resource": [
+              { "Fn::GetAtt": ["Administrators", "Arn"] },
+              { "Fn::GetAtt": ["Managers", "Arn"] },
+              { "Fn::GetAtt": ["Developers", "Arn"] }
+            ]
+          } ]
+        }
+      }
+    },
+
+    "IAMManagersPolicy": {
+      "Type": "AWS::IAM::Policy",
+      "Properties": {
+        "PolicyName": "IAMManagersPolicy",
+        "Groups": [{ "Ref": "Managers" }],
+        "PolicyDocument": {
+          "Version" : "2012-10-17",
+          "Statement": [ {
+            "Sid": "ReadOnlyIAMForThisProject",
+            "Effect": "Allow",
+            "Action": [
+              "iam:List*",
+              "iam:Get*"
+            ],
+            "Resource": [
+              { "Fn::GetAtt": ["Administrators", "Arn"] },
+              { "Fn::GetAtt": ["Managers", "Arn"] },
+              { "Fn::GetAtt": ["Developers", "Arn"] }
+            ]
+          }, {
+            "Sid": "ManageHimSelf",
+            "Effect": "Allow",
+            "Action": [
+              "iam:ChangePassword",
+              "iam:CreateAccessKey",
+              "iam:DeleteAccessKey",
+              "iam:ListAccessKeys",
+              "iam:UpdateAccessKey",
+              "iam:GetLoginProfile",
+              "iam:UpdateLoginProfile"
+            ],
+            "Resource": { "Fn::Join": ["", ["arn:aws:iam::", { "Ref": "AWS::AccountId" }, ":user/${aws:username}"]] }
+          } ]
+        }
+      }
+    },
+
+    "IAMDevelopersPolicy": {
+      "Type": "AWS::IAM::Policy",
+      "Properties": {
+        "PolicyName": "IAMDevelopersPolicy",
+        "Groups": [{ "Ref": "Developers" }],
+        "PolicyDocument": {
+          "Version" : "2012-10-17",
+          "Statement": [ {
+            "Sid": "ReadOnlyIAMForThisProject",
+            "Effect": "Allow",
+            "Action": [
+              "iam:List*",
+              "iam:Get*"
+            ],
+            "Resource": [
+              { "Fn::GetAtt": ["Administrators", "Arn"] },
+              { "Fn::GetAtt": ["Managers", "Arn"] },
+              { "Fn::GetAtt": ["Developers", "Arn"] }
+            ]
+          }, {
+            "Sid": "ManageHimSelf",
+            "Effect": "Allow",
+            "Action": [
+              "iam:ChangePassword",
+              "iam:CreateAccessKey",
+              "iam:DeleteAccessKey",
+              "iam:ListAccessKeys",
+              "iam:UpdateAccessKey",
+              "iam:GetLoginProfile",
+              "iam:UpdateLoginProfile"
+            ],
+            "Resource": { "Fn::Join": ["", ["arn:aws:iam::", { "Ref": "AWS::AccountId" }, ":user/${aws:username}"]] }
+          } ]
+        }
+      }
+    }
+  },
+
+  "Outputs": {
+    "AdministratorsGroupName": {
+      "Description": "Administrators Group Name",
+      "Value": {
+        "Ref": "Administrators"
+      }
+    },
+    "ManagersGroupName": {
+      "Description": "Managers Group Name",
+      "Value": {
+        "Ref": "Managers"
+      }
+    },
+    "DevelopersGroupName": {
+      "Description": "Developers Group Name",
+      "Value": {
+        "Ref": "Developers"
+      }
+    }
+  }
+
+
+}
