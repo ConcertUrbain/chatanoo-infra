@@ -1,0 +1,610 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+
+  "Description": "Create Core WS",
+
+  "Parameters": {
+    "DomainName": {
+      "Description": "The name of the domain used to host your Chatanoo",
+      "Type": "String",
+      "MinLength": "1",
+      "MaxLength": "255"
+    },
+    "PublicHostedZoneId": {
+      "Description": "The Public Hosted Zone Id of the domain used to host your Chatanoo",
+      "Type": "String",
+      "MinLength": "1",
+      "MaxLength": "255"
+    },
+    "PrivateHostedZoneId": {
+      "Description": "The Private Hosted Zone Id of the domain used to host your Chatanoo",
+      "Type": "String",
+      "MinLength": "1",
+      "MaxLength": "255"
+    },
+
+    "InstanceType": {
+      "Description": "Application EC2 instance type",
+      "Type": "String",
+      "Default": "t1.micro",
+      "AllowedValues": ["t1.micro", "m1.small", "m1.medium", "m1.large", "m1.xlarge", "m2.xlarge", "m2.2xlarge", "m2.4xlarge", "m3.xlarge", "m3.2xlarge", "c1.medium", "c1.xlarge", "cc1.4xlarge", "cc2.8xlarge", "cg1.4xlarge"],
+      "ConstraintDescription": "must be a valid EC2 instance type."
+    },
+
+    "DatabaseUser": {
+      "Default": "admin",
+      "NoEcho": "true",
+      "Type": "String",
+      "Description": "Database admin account name",
+      "MinLength": "1",
+      "MaxLength": "16",
+      "AllowedPattern": "[a-zA-Z][a-zA-Z0-9]*",
+      "ConstraintDescription": "must begin with a letter and contain only alphanumeric characters."
+    },
+    "DatabasePassword": {
+      "Default": "0bee082a464",
+      "NoEcho": "true",
+      "Type": "String",
+      "Description": "Database admin account password",
+      "MinLength": "1",
+      "MaxLength": "41",
+      "AllowedPattern": "[a-zA-Z0-9]*",
+      "ConstraintDescription": "must contain only alphanumeric characters."
+    },
+    "DatabaseName": {
+      "Description": "The name of the database",
+      "Type": "String",
+      "Default": " amediamanager"
+    },
+
+    "InstanceSecurityGroup": {
+      "Type": "String"
+    },
+    "KeyName": {
+      "Type": "String"
+    },
+    "VPCId" : {
+      "Type" : "String",
+      "Description" : "The VPC ID to launch the application into."
+    },
+    "PublicSubnets" : {
+      "Type" : "String",
+      "Description" : "A comma-delimited list of public VPC subnets. ELBs will be launched into this subnet."
+    },
+    "PrivateSubnets" : {
+      "Type" : "String",
+      "Description" : "A comma-delimited list of private VPC subnets. Auto Scaling and RDS will be launched into this subnet."
+    },
+
+    "CacheInstanceType": {
+      "Description": "Instance Type for Memcache cluster",
+      "Type": "String",
+      "Default": "cache.t2.micro",
+      "AllowedValues": ["cache.m3.medium", "cache.m3.large", "cache.m3.xlarge", "cache.m3.2xlarge", "cache.r3.large", "cache.r3.xlarge", "cache.r3.2xlarge", "cache.r3.4xlarge", "cache.r3.8xlarge", "cache.t2.micro", "cache.t2.small", "cache.t2.medium"],
+      "ConstraintDescription": "must be a valid Cache instance type."
+    },
+    "CacheNumNodes": {
+      "Description": "Number of nodes in the Memcache cluster",
+      "Type": "Number",
+      "Default": "1"
+    },
+
+    "DBInstanceType": {
+      "Description": "Instance Type for MySQL cluster",
+      "Type": "String",
+      "Default": "db.t2.micro",
+      "AllowedValues": ["db.m3.medium", "db.m3.large", "db.m3.xlarge", "db.m3.2xlarge", "db.r3.large", "db.r3.xlarge", "db.r3.2xlarge", "db.r3.4xlarge", "db.r3.8xlarge", "db.t2.micro", "db.t2.small", "db.t2.medium"],
+      "ConstraintDescription": "must be a valid DB instance type."
+    },
+    "DBUseMultiAZ": {
+      "Description": "Use MultiAZ for MySQL cluster in GB",
+      "Type": "Boolean",
+      "Default": false
+    },
+    "DBStorageType": {
+      "Description": "Storage Type for MySQL cluster in GB",
+      "Type": "String",
+      "Default": "5",
+      "AllowedValues": ["standard", "gp2", "io1"],
+      "ConstraintDescription": "must be a valid DB storage type."
+    },
+    "DBAllocatedStorage": {
+      "Description": "Allocated Storage for MySQL cluster in GB",
+      "Type": "Number",
+      "Default": "5"
+    },
+
+    "ProjectName": {
+      "Description": "The name of the Chatanoo Project that will be used to tag all resources",
+      "Type": "String",
+      "Default": "Default"
+    },
+    "AdministratorsGroupName": {
+      "Description": "Administrators Group Name in IAM",
+      "Type": "String",
+      "Default": "Default"
+    },
+    "ManagersGroupName": {
+      "Description": "Managers Group Name in IAM",
+      "Type": "String",
+      "Default": "Default"
+    },
+    "DevelopersGroupName": {
+      "Description": "Developers Group Name in IAM",
+      "Type": "String",
+      "Default": "Default"
+    }
+  },
+
+  "Mappings": {
+
+  },
+
+  "Resources": {
+
+    "CacheSubnetGroup" : {
+      "Type" : "AWS::ElastiCache::SubnetGroup",
+      "Properties" : {
+        "Description" : "Cache Subnet Group",
+        "SubnetIds": [{
+          "Ref": "PrivateSubnet1"
+        }, {
+          "Ref": "PrivateSubnet2"
+        }]
+      }
+    },
+
+    "CacheParameters" : {
+      "Type" : "AWS::ElastiCache::ParameterGroup",
+      "Properties" : {
+        "CacheParameterGroupFamily" : "memcached1.4",
+        "Description" : "Parameter group",
+        "Properties" : {
+          "cas_disabled" : "1"
+        }
+      }
+    },
+
+    "CacheSecurityGroup" : {
+      "Type" : "AWS::EC2::SecurityGroup",
+      "Properties" : {
+        "GroupDescription" : "Allow access to the cache from the Web Server",
+        "VpcId" : { "Ref" : "VPCId" },
+        "SecurityGroupIngress": [{
+          "IpProtocol": "tcp",
+          "FromPort": "0",
+          "ToPort": "65535",
+          "SourceSecurityGroupId": {
+            "Ref": "InstanceSecurityGroup"
+          }
+        }],
+        "SecurityGroupEgress": [{
+          "IpProtocol": "tcp",
+          "FromPort": "0",
+          "ToPort": "65535",
+          "SourceSecurityGroupId": {
+            "Ref": "InstanceSecurityGroup"
+          }
+        }]
+      }      
+    },  
+
+    "CacheCluster" : {
+      "Type": "AWS::ElastiCache::CacheCluster",
+      "Properties": {
+        "CacheSubnetGroupName" : { "Ref": "CacheSubnetGroup" },
+        "CacheNodeType"        : { "Ref": "CacheInstanceType" },
+        "VpcSecurityGroupIds"  : [ { "Ref": "CacheSecurityGroup" } ],
+        "Engine"               : "memcached",
+        "NumCacheNodes"        : { "Ref": "CacheNumNodes" },
+        "Tags": [{
+          "Key": "chatanoo:client",
+          "Value": { "Ref": "ProjectName" }
+        }, {
+          "Key": "chatanoo:project",
+          "Value": "Core"
+        }, {
+          "Key": "chatanoo:environment",
+          "Value": "Production"
+        }, {
+          "Key": "chatanoo:access",
+          "Value": "Private"
+        }, {
+          "Key": "chatanoo:region",
+          "Value": { "Ref": "AWS::Region" }
+        }]
+      }
+    },
+
+    "DBSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "Allow the Elastic Beanstalk instances to access the RDS database",
+        "VpcId": {
+          "Ref": "VPCId"
+        },
+        "SecurityGroupIngress": [{
+          "IpProtocol": "tcp",
+          "FromPort": "3306",
+          "ToPort": "3306",
+          "SourceSecurityGroupId": {
+            "Ref": "InstanceSecurityGroup"
+          }
+        }],
+        "SecurityGroupEgress": [{
+          "IpProtocol": "tcp",
+          "FromPort": "3306",
+          "ToPort": "3306",
+          "CidrIp": "0.0.0.0/0"
+        }]
+      }
+    },
+
+    "DBSubnetGroup": {
+      "Type": "AWS::RDS::DBSubnetGroup",
+      "Properties": {
+        "DBSubnetGroupDescription": "RDS DB Subnet group",
+        "SubnetIds": [{
+          "Ref": "PrivateSubnet1"
+        }, {
+          "Ref": "PrivateSubnet2"
+        }]
+      }
+    },
+
+    "Database": {
+      "Type": "AWS::RDS::DBInstance",
+      "Properties": {
+        "Engine": "MySQL",
+        "DBName": { "Ref": "DatabaseName" },
+        "MasterUsername": { "Ref": "DatabaseUser" },
+        "DBInstanceClass": { "Ref": "DBInstanceType" },
+        "AllocatedStorage": { "Ref": "DBAllocatedStorage" },
+        "MasterUserPassword": { "Ref": "DatabasePassword" },
+        "VPCSecurityGroups": [{ "Ref": "DBSecurityGroup" }],
+        "DBSubnetGroupName": { "Ref": "DBSubnetGroup" },
+        "MultiAZ": { "Ref": "DBUseMultiAZ" },
+        "StorageType": { "Ref": "DBStorageType" },
+        "Tags": [{
+          "Key": "chatanoo:client",
+          "Value": { "Ref": "ProjectName" }
+        }, {
+          "Key": "chatanoo:project",
+          "Value": "Core"
+        }, {
+          "Key": "chatanoo:environment",
+          "Value": "Production"
+        }, {
+          "Key": "chatanoo:access",
+          "Value": "Private"
+        }, {
+          "Key": "chatanoo:region",
+          "Value": { "Ref": "AWS::Region" }
+        }]
+      }
+    },
+
+    "CoreApplication": {
+      "Type": "AWS::ElasticBeanstalk::Application",
+      "Properties": {
+        "Description": { "Fn:Join": [" ", ["Chatanoo", { "Ref": "ProjectName" }, "Core Application"]] },
+        "ApplicationName" : { "Fn::Join" : ["-", ["Chatanoo", { "Ref": "ProjectName" }]] }
+      }
+    },
+
+    "CoreConfigurationTemplate": {
+      "Type" : "AWS::ElasticBeanstalk::ConfigurationTemplate",
+      "Properties": {  
+        "ApplicationName": { "Ref": "CoreApplication"},
+        "Description": "Default Configuration Version 1.0 - with SSH access",
+        "OptionSettings": [ {
+          "Namespace": "aws:ec2:vpc",
+          "OptionName": "VPCId",
+          "Value": { "Ref": "VPCId" }
+        },
+        {
+          "Namespace": "aws:ec2:vpc",
+          "OptionName": "Subnets",
+          "Value": { "Ref" : "PrivateSubnets" }
+        },
+        {
+          "Namespace": "aws:ec2:vpc",
+          "OptionName": "ELBSubnets",
+          "Value": { "Ref" : "PublicSubnets" }
+        },
+        {
+          "Namespace": "aws:autoscaling:launchconfiguration",
+          "OptionName": "SecurityGroups",
+          "Value": { "Ref": "InstanceSecurityGroup" }
+        },
+        {
+          "Namespace": "aws:autoscaling:launchconfiguration",
+          "OptionName": "IamInstanceProfile",
+          "Value": { "Ref": "EbAppInstanceProfile" }
+        },
+        {
+          "Namespace": "aws:autoscaling:launchconfiguration",
+          "OptionName": "InstanceType",
+          "Value": { "Ref": "InstanceType" }
+        }],
+        "SolutionStackName": "64bit Amazon Linux 2015.03 v1.4.3 running PHP 5.6"
+      } 
+    },
+
+    "CoreApplicationVersion": {
+      "Type": "AWS::ElasticBeanstalk::ApplicationVersion",
+      "Properties": {
+        "ApplicationName": { "Ref": "CoreApplication"},
+        "Description": "Initial Version",
+        "SourceBundle": {  }
+      }
+    },
+
+    "CoreEnvironment": {
+      "Type": "AWS::ElasticBeanstalk::Environment",
+      "Properties": {
+        "ApplicationName": { "Ref": "CoreApplication"},
+        "EnvironmentName" : { "Fn::Join" : ["-", [ { "Ref": "ProjectName" }, "prod"]] },
+        "Description": "Production Environment",
+        "VersionLabel": { "Ref": "CoreApplicationVersion"},
+        "TemplateName": { "Ref": "CoreConfigurationTemplate"},
+        "OptionSettings": [{
+          "Namespace": "aws:elasticbeanstalk:application:environment",
+          "OptionName": "APPLICATION_ENV",
+          "Value": "production"
+        }, {
+          "Namespace": "aws:elasticbeanstalk:application:environment",
+          "OptionName": "DATABASE_HOST",
+          "Value": { "Fn::GetAtt": ["Database", "Endpoint.Address"] }
+        }, {
+          "Namespace": "aws:elasticbeanstalk:application:environment",
+          "OptionName": "DATABASE_NAME",
+          "Value": { "Ref": "DatabaseName" }
+        }, {
+          "Namespace": "aws:elasticbeanstalk:application:environment",
+          "OptionName": "DATABASE_PASS",
+          "Value": { "Ref": "DatabasePassword" }
+        }, {
+          "Namespace": "aws:elasticbeanstalk:application:environment",
+          "OptionName": "DATABASE_USER",
+          "Value": { "Ref": "DatabaseUser" }
+        }, {
+          "Namespace": "aws:elasticbeanstalk:application:environment",
+          "OptionName": "LOGS_STREAM",
+          "Value": "production"
+        }, {
+          "Namespace": "aws:elasticbeanstalk:application:environment",
+          "OptionName": "MEMCACHED_HOST",
+          "Value": { "Fn::GetAtt": ["CacheCluster", "ConfigurationEndpoint.Address"] }
+        }, {
+          "Namespace": "aws:elasticbeanstalk:application:environment",
+          "OptionName": "MEMCACHED_PORT",
+          "Value": { "Fn::GetAtt": ["CacheCluster", "ConfigurationEndpoint.Port"] }
+        }, {
+          "Namespace": "aws:elasticbeanstalk:application:environment",
+          "OptionName": "NOTIFY_TOPIC",
+          "Value": "production"
+        }]
+      }
+    },
+
+    "CoreDNSRecord" : {
+      "Type": "AWS::Route53::RecordSet",
+      "Properties": {
+         "HostedZoneId": { "Ref": "PublicHostedZoneId" },
+         "Comment": "DNS Record for Core",
+         "Name": { "Fn::Join": ["", ["core.", { "Ref": "DomainName" }, "."]] } ,
+         "Type": "CNAME",
+         "TTL": "300",
+         "ResourceRecords" : [
+            { "Fn::GetAtt" : [ "CoreEnvironment", "EndpointURL" ] }
+         ]
+      }
+    },
+  	
+    "CoreAdministratorsPolicy": {
+      "Type": "AWS::IAM::Policy",
+      "Properties": {
+        "PolicyName": "CoreAdministratorsPolicy",
+        "Groups": [{ "Ref": "AdministratorsGroupName" }],
+        "PolicyDocument": {
+          "Version" : "2012-10-17",
+          "Statement": [ {
+            "Sid": "FullAccessCoreDatabaseForThisProject",
+            "Effect": "Allow",
+            "Action": [
+              "rds:*"
+            ],
+            "Resource": [
+              { "Fn::Join": [":", ["arn:aws:rds", { "Ref": "AWS::Region" }, { "Ref": "AWS::AccountId" }, "db", { "Ref": "Database" }]] }
+            ]
+          }, {
+            "Sid": "FullAccessCoreCacheForThisProject",
+            "Effect": "Allow",
+            "Action": [
+              "elastiCache:*"
+            ],
+            "Resource": [
+              "*"
+            ]
+          }, {
+            "Sid": "FullAccessCoreApplicationForThisProject",
+            "Effect": "Allow",
+            "Action": [
+              "elasticbeanstalk:*",
+              "ec2:*",
+              "elasticloadbalancing:*",
+              "autoscaling:*",
+              "cloudwatch:*",
+              "s3:*",
+              "sns:*",
+              "cloudformation:*",
+              "rds:*",
+              "sqs:*",
+              "iam:PassRole"
+            ],
+            "Resource": [
+              "*"
+            ],
+            "Condition": {
+              "StringEquals": {
+                "elasticbeanstalk:InApplication": [{ "Fn::Join": ["", ["arn:aws:elasticbeanstalk:"], { "Ref": "AWS::Region" }, ":", { "Ref": "AWS::AccountId" }, ":application/", { "Ref": "CoreApplication" }] }]
+              }
+            }
+          } ]
+        }
+      }
+    },
+
+    "CoreManagersPolicy": {
+      "Type": "AWS::IAM::Policy",
+      "Properties": {
+        "PolicyName": "CoreManagersPolicy",
+        "Groups": [{ "Ref": "ManagersGroupName" }],
+        "PolicyDocument": {
+          "Version" : "2012-10-17",
+          "Statement": [ {
+            "Sid": "ReadOnlyCoreDatabaseForThisProject",
+            "Effect": "Allow",
+            "Action": [
+              "rds:List*",
+              "rds:Get*",
+              "rds:Describe*"
+            ],
+            "Resource": [
+              { "Fn::Join": [":", ["arn:aws:rds", { "Ref": "AWS::Region" }, { "Ref": "AWS::AccountId" }, "db", { "Ref": "Database" }]] }
+            ]
+          }, {
+            "Sid": "ReadOnlyCoreCacheForThisProject",
+            "Effect": "Allow",
+            "Action": [
+              "elastiCache:List*",
+              "elastiCache:Get*",
+              "elastiCache:Describe*"
+            ],
+            "Resource": [
+              "*"
+            ]
+          }, {
+            "Sid": "ReadOnlyCoreApplicationForThisProject",
+            "Effect": "Allow",
+            "Action": [
+              "elasticbeanstalk:List*",
+              "elasticbeanstalk:Get*",
+              "elasticbeanstalk:Describe*",
+              "ec2:List*",
+              "ec2:Get*",
+              "elasticloadbalancing:List*",
+              "elasticloadbalancing:Get*",
+              "autoscaling:List*",
+              "autoscaling:Get*",
+              "cloudwatch:List*",
+              "cloudwatch:Get*",
+              "s3:List*",
+              "s3:Get*",
+              "sns:List*",
+              "sns:Get*",
+              "cloudformation:List*",
+              "cloudformation:Get*",
+              "rds:List*",
+              "rds:Get*",
+              "sqs:List*",
+              "sqs:Get*",
+              "iam:PassRole"
+            ],
+            "Resource": [
+              "*"
+            ],
+            "Condition": {
+              "StringEquals": {
+                "elasticbeanstalk:InApplication": [{ "Fn::Join": ["", ["arn:aws:elasticbeanstalk:"], { "Ref": "AWS::Region" }, ":", { "Ref": "AWS::AccountId" }, ":application/", { "Ref": "CoreApplication" }] }]
+              }
+            }
+          } ]
+        }
+      }
+    },
+
+    "CoreManagersPolicy": {
+      "Type": "AWS::IAM::Policy",
+      "Properties": {
+        "PolicyName": "CoreManagersPolicy",
+        "Groups": [{ "Ref": "ManagersGroupName" }],
+        "PolicyDocument": {
+          "Version" : "2012-10-17",
+          "Statement": [ {
+            "Sid": "ReadOnlyCoreDatabaseForThisProject",
+            "Effect": "Allow",
+            "Action": [
+              "rds:List*",
+              "rds:Get*",
+              "rds:Describe*",
+              "rds:*Snapshot",
+              "rds:Restore*",
+              "rds:RebootDBInstance",
+              "rds:PromoteReadReplica"
+            ],
+            "Resource": [
+              { "Fn::Join": [":", ["arn:aws:rds", { "Ref": "AWS::Region" }, { "Ref": "AWS::AccountId" }, "db", { "Ref": "Database" }]] }
+            ]
+          }, {
+            "Sid": "ReadOnlyCoreCacheForThisProject",
+            "Effect": "Allow",
+            "Action": [
+              "elastiCache:List*",
+              "elastiCache:Get*",
+              "elastiCache:Describe*",
+              "elastiCache:*Snapshot",
+              "elastiCache:RebootCacheCluster"
+            ],
+            "Resource": [
+              "*"
+            ]
+          }, {
+            "Sid": "ReadOnlyCoreApplicationForThisProject",
+            "Effect": "Allow",
+            "Action": [
+              "elasticbeanstalk:List*",
+              "elasticbeanstalk:Get*",
+              "elasticbeanstalk:Describe*",
+              "elasticbeanstalk:*ApplicationVersion*",
+              "elasticbeanstalk:*ConfigurationTemplate*",
+              "elasticbeanstalk:*Environment*",
+              "elasticbeanstalk:RestartAppServer",
+              "elasticbeanstalk:ValidateConfigurationSettings",
+              "elasticbeanstalk:CheckDNSAvailability",
+              "ec2:*",
+              "elasticloadbalancing:*",
+              "autoscaling:*",
+              "cloudwatch:*",
+              "s3:*",
+              "sns:*",
+              "cloudformation:*",
+              "rds:*",
+              "sqs:*",
+              "iam:PassRole"
+            ],
+            "Resource": [
+              "*"
+            ],
+            "Condition": {
+              "StringEquals": {
+                "elasticbeanstalk:InApplication": [{ "Fn::Join": ["", ["arn:aws:elasticbeanstalk:"], { "Ref": "AWS::Region" }, ":", { "Ref": "AWS::AccountId" }, ":application/", { "Ref": "CoreApplication" }] }]
+              }
+            }
+          } ]
+        }
+      }
+    }
+  },
+
+  "Outputs": {
+    "CoreURL": {
+      "Description": "URL for the CDN",
+      "Value": { 
+        "Fn::Join": ["", ["cdn.", { "Ref": "DomainName" }]] 
+      } 
+    }
+  }
+
+}
