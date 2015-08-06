@@ -30,6 +30,11 @@
       "Type": "String",
       "Default": "templates/chatanoo-cdn.cfn.json"
     },
+    "CoreTemplateKey": {
+      "Description": "The key of the template for the Core substack",
+      "Type": "String",
+      "Default": "templates/chatanoo-core.cfn.json"
+    },
 
     "KeyName": {
       "Description": "Name of an existing EC2 KeyPair to enable SSH access to the Elastic Beanstalk and Bastion hosts",
@@ -80,6 +85,15 @@
       "Type": "String",
       "MinLength": "1",
       "MaxLength": "255"
+    },
+
+    "CoreDBPassword": {
+      "Description": "Database admin account password.",
+      "Type": "String",
+      "MinLength": "1",
+      "MaxLength": "41",
+      "AllowedPattern": "[a-zA-Z0-9]*",
+      "ConstraintDescription": "must contain only alphanumeric characters."
     }
   },
 
@@ -138,6 +152,27 @@
           "DevelopersGroupName": { "Fn::GetAtt" : [ "IAMScaffold", "Outputs.DevelopersGroupName" ]}
         }
       }
+    },
+    "Core" : {
+      "Type" : "AWS::CloudFormation::Stack",
+      "Properties" : {
+        "TemplateURL" : { "Fn::Join" : ["", [ "http://", { "Ref" : "CloudFormationBucket" }, ".s3.amazonaws.com/", { "Ref" : "CoreTemplateKey" }]]},
+        "Parameters" : {
+          "DomainName": { "Ref" : "Domain" },
+          "PublicHostedZoneId": { "Fn::GetAtt" : [ "Route53", "Outputs.PublicHostedZoneId" ]},
+          "PrivateHostedZoneId": { "Fn::GetAtt" : [ "Route53", "Outputs.PrivateHostedZoneId" ]},
+          "ProjectName": { "Ref" : "AWS::StackName" },
+          "KeyName": { "Ref" : "KeyName" },
+          "VPCId": { "Fn::GetAtt" : [ "VPCScaffold", "Outputs.VPCId" ]},
+          "InstanceSecurityGroup": { "Fn::GetAtt" : [ "VPCScaffold", "Outputs.InstanceSecurityGroup" ]},
+          "PublicSubnets": { "Fn::Join": [",", [{ "Fn::GetAtt" : [ "VPCScaffold", "Outputs.PublicSubnet1" ]}, { "Fn::GetAtt" : [ "VPCScaffold", "Outputs.PublicSubnet2" ]}]]},
+          "PrivateSubnets": { "Fn::Join": [",", [{ "Fn::GetAtt" : [ "VPCScaffold", "Outputs.PrivateSubnet1" ]}, { "Fn::GetAtt" : [ "VPCScaffold", "Outputs.PrivateSubnet2" ]}]]},
+          "DatabasePassword": { "Ref" : "CoreDBPassword" },
+          "AdministratorsGroupName": { "Fn::GetAtt" : [ "IAMScaffold", "Outputs.AdministratorsGroupName" ]},
+          "ManagersGroupName": { "Fn::GetAtt" : [ "IAMScaffold", "Outputs.ManagersGroupName" ]},
+          "DevelopersGroupName": { "Fn::GetAtt" : [ "IAMScaffold", "Outputs.DevelopersGroupName" ]}
+        }
+      }
     }
   },
 
@@ -146,6 +181,12 @@
       "Description": "URL for the CDN",
       "Value": { 
         "Fn::GetAtt" : [ "CDN", "Outputs.CDNURL" ]
+      }
+    },
+    "CoreURL": {
+      "Description": "URL for the Core Application",
+      "Value": { 
+        "Fn::GetAtt" : [ "Core", "Outputs.CoreURL" ]
       }
     }
   }

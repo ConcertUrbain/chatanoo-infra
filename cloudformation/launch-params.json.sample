@@ -14,5 +14,9 @@
   {
     "ParameterKey": "VPCAvailabilityZone2",
     "ParameterValue": "eu-west-1c"
+  },
+  {
+    "ParameterKey": "CoreDBPassword",
+    "ParameterValue": "YOUR_DB_PASSWORD"
   }
 ]

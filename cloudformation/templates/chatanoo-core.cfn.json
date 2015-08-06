@@ -42,7 +42,6 @@
       "ConstraintDescription": "must begin with a letter and contain only alphanumeric characters."
     },
     "DatabasePassword": {
-      "Default": "0bee082a464",
       "NoEcho": "true",
       "Type": "String",
       "Description": "Database admin account password",
@@ -54,7 +53,7 @@
     "DatabaseName": {
       "Description": "The name of the database",
       "Type": "String",
-      "Default": " amediamanager"
+      "Default": " chatanoo"
     },
 
     "InstanceSecurityGroup": {
@@ -68,11 +67,11 @@
       "Description" : "The VPC ID to launch the application into."
     },
     "PublicSubnets" : {
-      "Type" : "String",
+      "Type" : "CommaDelimitedList",
       "Description" : "A comma-delimited list of public VPC subnets. ELBs will be launched into this subnet."
     },
     "PrivateSubnets" : {
-      "Type" : "String",
+      "Type" : "CommaDelimitedList",
       "Description" : "A comma-delimited list of private VPC subnets. Auto Scaling and RDS will be launched into this subnet."
     },
 
@@ -96,15 +95,10 @@
       "AllowedValues": ["db.m3.medium", "db.m3.large", "db.m3.xlarge", "db.m3.2xlarge", "db.r3.large", "db.r3.xlarge", "db.r3.2xlarge", "db.r3.4xlarge", "db.r3.8xlarge", "db.t2.micro", "db.t2.small", "db.t2.medium"],
       "ConstraintDescription": "must be a valid DB instance type."
     },
-    "DBUseMultiAZ": {
-      "Description": "Use MultiAZ for MySQL cluster in GB",
-      "Type": "Boolean",
-      "Default": false
-    },
     "DBStorageType": {
       "Description": "Storage Type for MySQL cluster in GB",
       "Type": "String",
-      "Default": "5",
+      "Default": "standard",
       "AllowedValues": ["standard", "gp2", "io1"],
       "ConstraintDescription": "must be a valid DB storage type."
     },
@@ -146,11 +140,9 @@
       "Type" : "AWS::ElastiCache::SubnetGroup",
       "Properties" : {
         "Description" : "Cache Subnet Group",
-        "SubnetIds": [{
-          "Ref": "PrivateSubnet1"
-        }, {
-          "Ref": "PrivateSubnet2"
-        }]
+        "SubnetIds": {
+          "Ref": "PrivateSubnets"
+        }
       }
     },
 
@@ -196,23 +188,7 @@
         "CacheNodeType"        : { "Ref": "CacheInstanceType" },
         "VpcSecurityGroupIds"  : [ { "Ref": "CacheSecurityGroup" } ],
         "Engine"               : "memcached",
-        "NumCacheNodes"        : { "Ref": "CacheNumNodes" },
-        "Tags": [{
-          "Key": "chatanoo:client",
-          "Value": { "Ref": "ProjectName" }
-        }, {
-          "Key": "chatanoo:project",
-          "Value": "Core"
-        }, {
-          "Key": "chatanoo:environment",
-          "Value": "Production"
-        }, {
-          "Key": "chatanoo:access",
-          "Value": "Private"
-        }, {
-          "Key": "chatanoo:region",
-          "Value": { "Ref": "AWS::Region" }
-        }]
+        "NumCacheNodes"        : { "Ref": "CacheNumNodes" }
       }
     },
 
@@ -244,11 +220,9 @@
       "Type": "AWS::RDS::DBSubnetGroup",
       "Properties": {
         "DBSubnetGroupDescription": "RDS DB Subnet group",
-        "SubnetIds": [{
-          "Ref": "PrivateSubnet1"
-        }, {
-          "Ref": "PrivateSubnet2"
-        }]
+        "SubnetIds": {
+          "Ref": "PrivateSubnets"
+        }
       }
     },
 
@@ -263,7 +237,6 @@
         "MasterUserPassword": { "Ref": "DatabasePassword" },
         "VPCSecurityGroups": [{ "Ref": "DBSecurityGroup" }],
         "DBSubnetGroupName": { "Ref": "DBSubnetGroup" },
-        "MultiAZ": { "Ref": "DBUseMultiAZ" },
         "StorageType": { "Ref": "DBStorageType" },
         "Tags": [{
           "Key": "chatanoo:client",
@@ -284,11 +257,49 @@
       }
     },
 
+    "EbAppInstanceRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version" : "2012-10-17",
+          "Statement": [ {
+            "Effect": "Allow",
+            "Principal": {
+              "Service": [ "ec2.amazonaws.com" ]
+            },
+            "Action": [ "sts:AssumeRole" ]
+          } ]
+        },
+        "Path": { "Fn::Join": ["", ["/", { "Ref": "ProjectName" }, "/"]] },
+        "Policies": [ {
+          "PolicyName": "root",
+          "PolicyDocument": {
+            "Version" : "2012-10-17",
+            "Statement": [ {
+              "Effect": "Allow",
+              "Action": "*",
+              "Resource": "*"
+            } ]
+          }
+        } ]
+      }
+    },
+
+    "EbAppInstanceProfile": {
+      "Type": "AWS::IAM::InstanceProfile",
+      "Properties": {
+        "Path": { "Fn::Join": ["", ["/", { "Ref": "ProjectName" }, "/"]] },
+        "Roles": [ {
+          "Ref": "EbAppInstanceRole"
+        } ]
+      }
+    },
+
     "CoreApplication": {
       "Type": "AWS::ElasticBeanstalk::Application",
       "Properties": {
-        "Description": { "Fn:Join": [" ", ["Chatanoo", { "Ref": "ProjectName" }, "Core Application"]] },
-        "ApplicationName" : { "Fn::Join" : ["-", ["Chatanoo", { "Ref": "ProjectName" }]] }
+        "Description": { "Fn::Join": [" ", ["Chatanoo", { "Ref": "ProjectName" }, "Core Application"]] },
+        "ApplicationName" : { "Fn::Join" : ["-", ["Chatanoo", { "Ref": "ProjectName" }, "Core"]] }
       }
     },
 
@@ -305,12 +316,12 @@
         {
           "Namespace": "aws:ec2:vpc",
           "OptionName": "Subnets",
-          "Value": { "Ref" : "PrivateSubnets" }
+          "Value": { "Fn::Join": [",", { "Ref" : "PrivateSubnets" }]}
         },
         {
           "Namespace": "aws:ec2:vpc",
           "OptionName": "ELBSubnets",
-          "Value": { "Ref" : "PublicSubnets" }
+          "Value": { "Fn::Join": [",", { "Ref" : "PublicSubnets" }]}
         },
         {
           "Namespace": "aws:autoscaling:launchconfiguration",
@@ -327,7 +338,7 @@
           "OptionName": "InstanceType",
           "Value": { "Ref": "InstanceType" }
         }],
-        "SolutionStackName": "64bit Amazon Linux 2015.03 v1.4.3 running PHP 5.6"
+        "SolutionStackName": "64bit Amazon Linux 2015.03 v1.4.6 running PHP 5.6"
       } 
     },
 
@@ -336,7 +347,10 @@
       "Properties": {
         "ApplicationName": { "Ref": "CoreApplication"},
         "Description": "Initial Version",
-        "SourceBundle": {  }
+        "SourceBundle": { 
+          "S3Bucket" : "elasticbeanstalk-eu-west-1-175828319502",
+          "S3Key" : "chatanoo-core/9bcb.zip"
+        }
       }
     },
 
@@ -344,7 +358,7 @@
       "Type": "AWS::ElasticBeanstalk::Environment",
       "Properties": {
         "ApplicationName": { "Ref": "CoreApplication"},
-        "EnvironmentName" : { "Fn::Join" : ["-", [ { "Ref": "ProjectName" }, "prod"]] },
+        "EnvironmentName" : { "Fn::Join" : ["-", [ { "Ref": "ProjectName" }, "Core", "Prod"]] },
         "Description": "Production Environment",
         "VersionLabel": { "Ref": "CoreApplicationVersion"},
         "TemplateName": { "Ref": "CoreConfigurationTemplate"},
@@ -448,7 +462,7 @@
             ],
             "Condition": {
               "StringEquals": {
-                "elasticbeanstalk:InApplication": [{ "Fn::Join": ["", ["arn:aws:elasticbeanstalk:"], { "Ref": "AWS::Region" }, ":", { "Ref": "AWS::AccountId" }, ":application/", { "Ref": "CoreApplication" }] }]
+                "elasticbeanstalk:InApplication": [{ "Fn::Join": ["", ["arn:aws:elasticbeanstalk:", { "Ref": "AWS::Region" }, ":", { "Ref": "AWS::AccountId" }, ":application/", { "Ref": "CoreApplication" }]] }]
               }
             }
           } ]
@@ -517,7 +531,7 @@
             ],
             "Condition": {
               "StringEquals": {
-                "elasticbeanstalk:InApplication": [{ "Fn::Join": ["", ["arn:aws:elasticbeanstalk:"], { "Ref": "AWS::Region" }, ":", { "Ref": "AWS::AccountId" }, ":application/", { "Ref": "CoreApplication" }] }]
+                "elasticbeanstalk:InApplication": [{ "Fn::Join": ["", ["arn:aws:elasticbeanstalk:", { "Ref": "AWS::Region" }, ":", { "Ref": "AWS::AccountId" }, ":application/", { "Ref": "CoreApplication" }]] }]
               }
             }
           } ]
@@ -589,7 +603,7 @@
             ],
             "Condition": {
               "StringEquals": {
-                "elasticbeanstalk:InApplication": [{ "Fn::Join": ["", ["arn:aws:elasticbeanstalk:"], { "Ref": "AWS::Region" }, ":", { "Ref": "AWS::AccountId" }, ":application/", { "Ref": "CoreApplication" }] }]
+                "elasticbeanstalk:InApplication": [{ "Fn::Join": ["", ["arn:aws:elasticbeanstalk:", { "Ref": "AWS::Region" }, ":", { "Ref": "AWS::AccountId" }, ":application/", { "Ref": "CoreApplication" }]] }]
               }
             }
           } ]
@@ -600,7 +614,7 @@
 
   "Outputs": {
     "CoreURL": {
-      "Description": "URL for the CDN",
+      "Description": "URL for the Core Application",
       "Value": { 
         "Fn::Join": ["", ["cdn.", { "Ref": "DomainName" }]] 
       } 

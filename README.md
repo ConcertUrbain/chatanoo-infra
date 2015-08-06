@@ -37,5 +37,5 @@ $ vi cloudformation/launch-params.json
 Create your stack
 
 ```
-$ cloudfromation/create.sh my-stack-name
+$ cloudformation/create.sh my-stack-name
 ```
