@@ -12,10 +12,20 @@
     },
     "VPCId": {
       "Description": "A VPC ID.",
-      "Type": "String",
+      "Type": "AWS::EC2::VPC::Id",
       "MinLength": "1",
       "MaxLength": "255"
     },
+
+    "NATIPAddress": {
+      "Description": "IP Address of NAT Server.",
+      "Type": "String"
+    },
+    "BastionIPAddress": {
+      "Description": "IP Address of Bastion Server.",
+      "Type": "String"
+    },
+
     "ProjectName": {
       "Description": "The name of the Chatanoo Project that will be used to tag all resources",
       "Type": "String",
@@ -95,6 +105,60 @@
           "Key": "chatanoo:region",
           "Value": { "Ref": "AWS::Region" }
         }]
+      }
+    },
+
+    "NATPublicDNSRecord" : {
+      "Type": "AWS::Route53::RecordSet",
+      "Properties": {
+         "HostedZoneId": { "Ref": "PublicDNS" },
+         "Comment": "Public DNS Record for NAT Server",
+         "Name": { "Fn::Join": ["", ["nat.infra.", { "Ref": "DomainName" }, "."]] } ,
+         "Type": "A",
+         "TTL": "300",
+         "ResourceRecords" : [
+            { "Ref": "NATIPAddress" }
+         ]
+      }
+    },
+    "NATPrivateDNSRecord" : {
+      "Type": "AWS::Route53::RecordSet",
+      "Properties": {
+         "HostedZoneId": { "Ref": "PrivateDNS" },
+         "Comment": "Private DNS Record for NAT Server",
+         "Name": { "Fn::Join": ["", ["nat.infra.", { "Ref": "DomainName" }, "."]] } ,
+         "Type": "A",
+         "TTL": "300",
+         "ResourceRecords" : [
+            { "Ref": "NATIPAddress" }
+         ]
+      }
+    },
+
+    "BastionPublicDNSRecord" : {
+      "Type": "AWS::Route53::RecordSet",
+      "Properties": {
+         "HostedZoneId": { "Ref": "PublicDNS" },
+         "Comment": "Public DNS Record for Bastion Server",
+         "Name": { "Fn::Join": ["", ["bastion.infra.", { "Ref": "DomainName" }, "."]] } ,
+         "Type": "A",
+         "TTL": "300",
+         "ResourceRecords" : [
+            { "Ref": "BastionIPAddress" }
+         ]
+      }
+    },
+    "BastionPrivateDNSRecord" : {
+      "Type": "AWS::Route53::RecordSet",
+      "Properties": {
+         "HostedZoneId": { "Ref": "PrivateDNS" },
+         "Comment": "Private DNS Record for Bastion Server",
+         "Name": { "Fn::Join": ["", ["bastion.infra.", { "Ref": "DomainName" }, "."]] } ,
+         "Type": "A",
+         "TTL": "300",
+         "ResourceRecords" : [
+            { "Ref": "BastionIPAddress" }
+         ]
       }
     },
 

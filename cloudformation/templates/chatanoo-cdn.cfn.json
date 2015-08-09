@@ -12,7 +12,13 @@
     },
     "PublicHostedZoneId": {
       "Description": "The Public Hosted Zone Id of the domain used to host your Chatanoo",
-      "Type": "String",
+      "Type": "AWS::Route53::HostedZone::Id",
+      "MinLength": "1",
+      "MaxLength": "255"
+    },
+    "PrivateHostedZoneId": {
+      "Description": "The Private Hosted Zone Id of the domain used to host your Chatanoo",
+      "Type": "AWS::Route53::HostedZone::Id",
       "MinLength": "1",
       "MaxLength": "255"
     },
@@ -95,11 +101,24 @@
       }
     },
 
-    "CDNDNSRecord" : {
+    "CDNPublicDNSRecord" : {
       "Type": "AWS::Route53::RecordSet",
       "Properties": {
          "HostedZoneId": { "Ref": "PublicHostedZoneId" },
-         "Comment": "DNS Record for CDN",
+         "Comment": "Public DNS Record for CDN",
+         "Name": { "Fn::Join": ["", ["cdn.", { "Ref": "DomainName" }, "."]] } ,
+         "Type": "CNAME",
+         "TTL": "300",
+         "ResourceRecords" : [
+            { "Fn::GetAtt" : [ "CDNCloudFrontDistribution", "DomainName" ] }
+         ]
+      }
+    },
+    "CDNPrivateDNSRecord" : {
+      "Type": "AWS::Route53::RecordSet",
+      "Properties": {
+         "HostedZoneId": { "Ref": "PrivateHostedZoneId" },
+         "Comment": "Private DNS Record for CDN",
          "Name": { "Fn::Join": ["", ["cdn.", { "Ref": "DomainName" }, "."]] } ,
          "Type": "CNAME",
          "TTL": "300",

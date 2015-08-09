@@ -6,7 +6,7 @@
   "Parameters": {
     "KeyName": {
       "Description": "Name of an existing EC2 KeyPair to enable SSH access to the Elastic Beanstalk and Bastion hosts",
-      "Type": "String",
+      "Type": "AWS::EC2::KeyPair::KeyName",
       "MinLength": "1",
       "MaxLength": "255",
       "AllowedPattern": "[\\x20-\\x7E]*",
@@ -40,13 +40,13 @@
     },
     "VPCAvailabilityZone1": {
       "Description": "One of two Availability Zones that will be used to create subnets.",
-      "Type": "String",
+      "Type": "AWS::EC2::AvailabilityZone::Name",
       "MinLength": "1",
       "MaxLength": "255"
     },
     "VPCAvailabilityZone2": {
       "Description": "Two of two Availability Zones that will be used to create subnets. Must be different than VPCAvailabilityZone2.",
-      "Type": "String",
+      "Type": "AWS::EC2::AvailabilityZone::Name",
       "MinLength": "1",
       "MaxLength": "255"
     },
@@ -268,6 +268,9 @@
           "Fn::FindInMap": ["Region2VpcCidr", { "Ref" : "AWS::Region" }, "VpcCidr"]
         },
         "Tags": [{
+          "Key": "Name",
+          "Value": { "Fn::Join": [" ", [{ "Ref": "ProjectName" }, "VPC"]] }
+        }, {
           "Key": "chatanoo:client",
           "Value": { "Ref": "ProjectName" }
         }, {
@@ -299,6 +302,9 @@
           "Ref": "VPCAvailabilityZone1"
         },
         "Tags": [{
+          "Key": "Name",
+          "Value": { "Fn::Join": [" ", [{ "Ref": "ProjectName" }, "PublicSubnet1", { "Ref": "VPCAvailabilityZone1" }]] }
+        }, {
           "Key": "chatanoo:client",
           "Value": { "Ref": "ProjectName" }
         }, {
@@ -330,6 +336,9 @@
           "Ref": "VPCAvailabilityZone2"
         },
         "Tags": [{
+          "Key": "Name",
+          "Value": { "Fn::Join": [" ", [{ "Ref": "ProjectName" }, "PublicSubnet2", { "Ref": "VPCAvailabilityZone2" }]] }
+        }, {
           "Key": "chatanoo:client",
           "Value": { "Ref": "ProjectName" }
         }, {
@@ -352,6 +361,9 @@
       "Type": "AWS::EC2::InternetGateway",
       "Properties": {
         "Tags": [{
+          "Key": "Name",
+          "Value": { "Fn::Join": [" ", [{ "Ref": "ProjectName" }, "Internet Gateway"]] }
+        }, {
           "Key": "chatanoo:client",
           "Value": { "Ref": "ProjectName" }
         }, {
@@ -389,6 +401,9 @@
           "Ref": "VPC"
         },
         "Tags": [{
+          "Key": "Name",
+          "Value": { "Fn::Join": [" ", [{ "Ref": "ProjectName" }, "Public Route Table"]] }
+        }, {
           "Key": "chatanoo:client",
           "Value": { "Ref": "ProjectName" }
         }, {
@@ -452,6 +467,9 @@
           "Ref": "VPC"
         },
         "Tags": [{
+          "Key": "Name",
+          "Value": { "Fn::Join": [" ", [{ "Ref": "ProjectName" }, "Public Network ACL"]] }
+        }, {
           "Key": "chatanoo:client",
           "Value": { "Ref": "ProjectName" }
         }, {
@@ -599,6 +617,9 @@
           "Fn::FindInMap": ["Region2VpcCidr", { "Ref" : "AWS::Region" }, "PrivateSubnet1Cidr"]
         },
         "Tags": [{
+          "Key": "Name",
+          "Value": { "Fn::Join": [" ", [{ "Ref": "ProjectName" }, "PrivateSubnet1", { "Ref": "VPCAvailabilityZone1" }]] }
+        }, {
           "Key": "chatanoo:client",
           "Value": { "Ref": "ProjectName" }
         }, {
@@ -630,6 +651,9 @@
           "Fn::FindInMap": ["Region2VpcCidr", { "Ref" : "AWS::Region" }, "PrivateSubnet2Cidr"]
         },
         "Tags": [{
+          "Key": "Name",
+          "Value": { "Fn::Join": [" ", [{ "Ref": "ProjectName" }, "PrivateSubnet2", { "Ref": "VPCAvailabilityZone2" }]] }
+        }, {
           "Key": "chatanoo:client",
           "Value": { "Ref": "ProjectName" }
         }, {
@@ -655,6 +679,9 @@
           "Ref": "VPC"
         },
         "Tags": [{
+          "Key": "Name",
+          "Value": { "Fn::Join": [" ", [{ "Ref": "ProjectName" }, "Private Route Table"]] }
+        }, {
           "Key": "chatanoo:client",
           "Value": { "Ref": "ProjectName" }
         }, {
@@ -717,6 +744,9 @@
           "Ref": "VPC"
         },
         "Tags": [{
+          "Key": "Name",
+          "Value": { "Fn::Join": [" ", [{ "Ref": "ProjectName" }, "Private Network ACL"]] }
+        }, {
           "Key": "chatanoo:client",
           "Value": { "Ref": "ProjectName" }
         }, {
@@ -823,6 +853,25 @@
         },
         "SecurityGroupIds": [{
           "Ref": "NATSecurityGroup"
+        }],
+        "Tags": [{
+          "Key": "Name",
+          "Value": { "Fn::Join" : [" ", [{ "Ref" : "ProjectName" }, "NAT Instance"]]}
+        }, {
+          "Key": "chatanoo:client",
+          "Value": { "Ref": "ProjectName" }
+        }, {
+          "Key": "chatanoo:project",
+          "Value": "Network"
+        }, {
+          "Key": "chatanoo:environment",
+          "Value": "Infra"
+        }, {
+          "Key": "chatanoo:access",
+          "Value": "Public"
+        }, {
+          "Key": "chatanoo:region",
+          "Value": { "Ref": "AWS::Region" }
         }]
       }
     },
@@ -862,7 +911,7 @@
         }],
         "Tags": [{
           "Key": "Name",
-          "Value": { "Fn::Join" : [" ", [{ "Ref" : "ProjectName" }, "NATSecurityGroup"]]}
+          "Value": { "Fn::Join" : [" ", [{ "Ref" : "ProjectName" }, "NAT SecurityGroup"]]}
         }, {
           "Key": "chatanoo:client",
           "Value": { "Ref": "ProjectName" }
@@ -890,14 +939,6 @@
           "Ref": "VPC"
         },
         "SecurityGroupIngress": [{
-          "IpProtocol": "tcp",
-          "FromPort": "22",
-          "ToPort": "22",
-          "SourceSecurityGroupId": {
-            "Ref": "BastionSecurityGroup"
-          }
-        }],
-        "SecurityGroupEgress": [{
           "IpProtocol": "tcp",
           "FromPort": "22",
           "ToPort": "22",
@@ -961,6 +1002,25 @@
         },
         "SecurityGroupIds": [{
           "Ref": "BastionSecurityGroup"
+        }],
+        "Tags": [{
+          "Key": "Name",
+          "Value": { "Fn::Join" : [" ", [{ "Ref" : "ProjectName" }, "Bastion Instance"]]}
+        }, {
+          "Key": "chatanoo:client",
+          "Value": { "Ref": "ProjectName" }
+        }, {
+          "Key": "chatanoo:project",
+          "Value": "Network"
+        }, {
+          "Key": "chatanoo:environment",
+          "Value": "Infra"
+        }, {
+          "Key": "chatanoo:access",
+          "Value": "Public"
+        }, {
+          "Key": "chatanoo:region",
+          "Value": { "Ref": "AWS::Region" }
         }]
       }
     },
@@ -994,6 +1054,25 @@
           "CidrIp": {
             "Fn::FindInMap": ["Region2VpcCidr", { "Ref" : "AWS::Region" }, "PrivateSubnet2Cidr"]
           }
+        }],
+        "Tags": [{
+          "Key": "Name",
+          "Value": { "Fn::Join" : [" ", [{ "Ref" : "ProjectName" }, "Bastion SecurityGroup"]]}
+        }, {
+          "Key": "chatanoo:client",
+          "Value": { "Ref": "ProjectName" }
+        }, {
+          "Key": "chatanoo:project",
+          "Value": "Network"
+        }, {
+          "Key": "chatanoo:environment",
+          "Value": "Infra"
+        }, {
+          "Key": "chatanoo:access",
+          "Value": "Public"
+        }, {
+          "Key": "chatanoo:region",
+          "Value": { "Ref": "AWS::Region" }
         }]
       }
     },
@@ -1149,6 +1228,14 @@
     "VPCAvailabilityZone2" : {
       "Description": "The AZ that (Public|Private)Subnet2 is launched into.",
       "Value": { "Ref": "VPCAvailabilityZone2"}
+    },
+    "NATIPAddress" : {
+      "Description": "IP Address of NAT Server",
+      "Value": { "Ref": "NATIPAddress"}
+    },
+    "BastionIPAddress" : {
+      "Description": "IP Address of Bastion Server",
+      "Value": { "Ref": "BastionIPAddress"}
     }
   }
 }

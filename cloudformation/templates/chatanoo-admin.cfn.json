@@ -1,0 +1,388 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+
+  "Description": "Create Chatanoo Administrator Tool",
+
+  "Parameters": {
+    "DomainName": {
+      "Description": "The name of the domain used to host your Chatanoo",
+      "Type": "String",
+      "MinLength": "1",
+      "MaxLength": "255"
+    },
+    "PublicHostedZoneId": {
+      "Description": "The Public Hosted Zone Id of the domain used to host your Chatanoo",
+      "Type": "AWS::Route53::HostedZone::Id",
+      "MinLength": "1",
+      "MaxLength": "255"
+    },
+    "PrivateHostedZoneId": {
+      "Description": "The Private Hosted Zone Id of the domain used to host your Chatanoo",
+      "Type": "AWS::Route53::HostedZone::Id",
+      "MinLength": "1",
+      "MaxLength": "255"
+    },
+
+    "InstanceType": {
+      "Description": "Application EC2 instance type",
+      "Type": "String",
+      "Default": "t1.micro",
+      "AllowedValues": ["t1.micro", "m1.small", "m1.medium", "m1.large", "m1.xlarge", "m2.xlarge", "m2.2xlarge", "m2.4xlarge", "m3.xlarge", "m3.2xlarge", "c1.medium", "c1.xlarge", "cc1.4xlarge", "cc2.8xlarge", "cg1.4xlarge"],
+      "ConstraintDescription": "must be a valid EC2 instance type."
+    },
+
+    "InstanceSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup::Id"
+    },
+    "KeyName": {
+      "Type": "AWS::EC2::KeyPair::KeyName"
+    },
+    "VPCId" : {
+      "Type" : "AWS::EC2::VPC::Id",
+      "Description" : "The VPC ID to launch the application into."
+    },
+    "PublicSubnets" : {
+      "Type" : "List<AWS::EC2::Subnet::Id>",
+      "Description" : "A comma-delimited list of public VPC subnets. ELBs will be launched into this subnet."
+    },
+    "PrivateSubnets" : {
+      "Type" : "List<AWS::EC2::Subnet::Id>",
+      "Description" : "A comma-delimited list of private VPC subnets. Auto Scaling and RDS will be launched into this subnet."
+    },
+
+    "CoreURL": {
+      "Description": "URL of the Core WS",
+      "Type": "String",
+      "MinLength": "1",
+      "MaxLength": "255"
+    },
+    "MobileURL": {
+      "Description": "URL of the Mobile Interface",
+      "Type": "String",
+      "MinLength": "1",
+      "MaxLength": "255"
+    },
+
+    "ProjectName": {
+      "Description": "The name of the Chatanoo Project that will be used to tag all resources",
+      "Type": "String",
+      "Default": "Default"
+    },
+    "AdministratorsGroupName": {
+      "Description": "Administrators Group Name in IAM",
+      "Type": "String",
+      "Default": "Default"
+    },
+    "ManagersGroupName": {
+      "Description": "Managers Group Name in IAM",
+      "Type": "String",
+      "Default": "Default"
+    },
+    "DevelopersGroupName": {
+      "Description": "Developers Group Name in IAM",
+      "Type": "String",
+      "Default": "Default"
+    }
+  },
+
+  "Mappings": {
+
+  },
+
+  "Resources": {
+
+    "AdminInstanceRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version" : "2012-10-17",
+          "Statement": [ {
+            "Effect": "Allow",
+            "Principal": {
+              "Service": [ "ec2.amazonaws.com" ]
+            },
+            "Action": [ "sts:AssumeRole" ]
+          } ]
+        },
+        "Path": { "Fn::Join": ["", ["/", { "Ref": "ProjectName" }, "/"]] },
+        "Policies": [ {
+          "PolicyName": "root",
+          "PolicyDocument": {
+            "Version" : "2012-10-17",
+            "Statement": [ {
+              "Effect": "Allow",
+              "Action": "*",
+              "Resource": "*"
+            } ]
+          }
+        } ]
+      }
+    },
+
+    "AdminInstanceProfile": {
+      "Type": "AWS::IAM::InstanceProfile",
+      "Properties": {
+        "Path": { "Fn::Join": ["", ["/", { "Ref": "ProjectName" }, "/"]] },
+        "Roles": [ {
+          "Ref": "AdminInstanceRole"
+        } ]
+      }
+    },
+
+    "AdminApplication": {
+      "Type": "AWS::ElasticBeanstalk::Application",
+      "Properties": {
+        "Description": { "Fn::Join": [" ", ["Chatanoo", { "Ref": "ProjectName" }, "Admin Application"]] },
+        "ApplicationName" : { "Fn::Join" : ["-", ["Chatanoo", { "Ref": "ProjectName" }, "Admin"]] }
+      }
+    },
+
+    "AdminConfigurationTemplate": {
+      "Type" : "AWS::ElasticBeanstalk::ConfigurationTemplate",
+      "Properties": {  
+        "ApplicationName": { "Ref": "AdminApplication"},
+        "Description": "Default Configuration Version 1.0 - with SSH access",
+        "OptionSettings": [ {
+          "Namespace": "aws:ec2:vpc",
+          "OptionName": "VPCId",
+          "Value": { "Ref": "VPCId" }
+        },
+        {
+          "Namespace": "aws:ec2:vpc",
+          "OptionName": "Subnets",
+          "Value": { "Fn::Join": [",", { "Ref" : "PrivateSubnets" }]}
+        },
+        {
+          "Namespace": "aws:ec2:vpc",
+          "OptionName": "ELBSubnets",
+          "Value": { "Fn::Join": [",", { "Ref" : "PublicSubnets" }]}
+        },
+        {
+          "Namespace": "aws:autoscaling:launchconfiguration",
+          "OptionName": "SecurityGroups",
+          "Value": { "Ref": "InstanceSecurityGroup" }
+        },
+        {
+          "Namespace": "aws:autoscaling:launchconfiguration",
+          "OptionName": "IamInstanceProfile",
+          "Value": { "Ref": "AdminInstanceProfile" }
+        },
+        {
+          "Namespace": "aws:autoscaling:launchconfiguration",
+          "OptionName": "InstanceType",
+          "Value": { "Ref": "InstanceType" }
+        },
+        {
+          "Namespace": "aws:autoscaling:launchconfiguration",
+          "OptionName": "EC2KeyName",
+          "Value": { "Ref": "KeyName" }
+        }],
+        "SolutionStackName": "64bit Amazon Linux 2015.03 v1.4.6 running Node.js"
+      } 
+    },
+
+    "AdminApplicationVersion": {
+      "Type": "AWS::ElasticBeanstalk::ApplicationVersion",
+      "Properties": {
+        "ApplicationName": { "Ref": "AdminApplication"},
+        "Description": "Initial Version",
+        "SourceBundle": { 
+          "S3Bucket" : "elasticbeanstalk-eu-west-1-175828319502",
+          "S3Key" : "chatanoo-admin/47fb.zip"
+        }
+      }
+    },
+
+    "AdminEnvironment": {
+      "Type": "AWS::ElasticBeanstalk::Environment",
+      "Properties": {
+        "ApplicationName": { "Ref": "AdminApplication"},
+        "EnvironmentName" : { "Fn::Join" : ["-", [ { "Ref": "ProjectName" }, "Admin", "Prod"]] },
+        "Description": "Production Environment",
+        "VersionLabel": { "Ref": "AdminApplicationVersion"},
+        "TemplateName": { "Ref": "AdminConfigurationTemplate"},
+        "OptionSettings": [{
+          "Namespace": "aws:elasticbeanstalk:application:environment",
+          "OptionName": "APPLICATION_ENV",
+          "Value": "production"
+        }, {
+          "Namespace": "aws:elasticbeanstalk:application:environment",
+          "OptionName": "MOBILE_URL",
+          "Value": { "Ref": "MobileURL" }
+        }, {
+          "Namespace": "aws:elasticbeanstalk:application:environment",
+          "OptionName": "NOTIFY_TOPIC",
+          "Value": ""
+        }, {
+          "Namespace": "aws:elasticbeanstalk:application:environment",
+          "OptionName": "WS_URL",
+          "Value": { "Ref": "CoreURL" }
+        }]
+      }
+    },
+
+    "AdminPublicDNSRecord" : {
+      "Type": "AWS::Route53::RecordSet",
+      "Properties": {
+         "HostedZoneId": { "Ref": "PublicHostedZoneId" },
+         "Comment": "Public DNS Record for Admin",
+         "Name": { "Fn::Join": ["", ["Admin.", { "Ref": "DomainName" }, "."]] } ,
+         "Type": "CNAME",
+         "TTL": "300",
+         "ResourceRecords" : [
+            { "Fn::GetAtt" : [ "AdminEnvironment", "EndpointURL" ] }
+         ]
+      }
+    },
+    "AdminPrivateDNSRecord" : {
+      "Type": "AWS::Route53::RecordSet",
+      "Properties": {
+         "HostedZoneId": { "Ref": "PrivateHostedZoneId" },
+         "Comment": "Private DNS Record for Admin",
+         "Name": { "Fn::Join": ["", ["Admin.", { "Ref": "DomainName" }, "."]] } ,
+         "Type": "CNAME",
+         "TTL": "300",
+         "ResourceRecords" : [
+            { "Fn::GetAtt" : [ "AdminEnvironment", "EndpointURL" ] }
+         ]
+      }
+    },
+  	
+    "AdminAdministratorsPolicy": {
+      "Type": "AWS::IAM::Policy",
+      "Properties": {
+        "PolicyName": "AdminAdministratorsPolicy",
+        "Groups": [{ "Ref": "AdministratorsGroupName" }],
+        "PolicyDocument": {
+          "Version" : "2012-10-17",
+          "Statement": [ {
+            "Sid": "FullAccessAdminApplicationForThisProject",
+            "Effect": "Allow",
+            "Action": [
+              "elasticbeanstalk:*",
+              "ec2:*",
+              "elasticloadbalancing:*",
+              "autoscaling:*",
+              "cloudwatch:*",
+              "s3:*",
+              "sns:*",
+              "cloudformation:*",
+              "rds:*",
+              "sqs:*",
+              "iam:PassRole"
+            ],
+            "Resource": [
+              "*"
+            ],
+            "Condition": {
+              "StringEquals": {
+                "elasticbeanstalk:InApplication": [{ "Fn::Join": ["", ["arn:aws:elasticbeanstalk:", { "Ref": "AWS::Region" }, ":", { "Ref": "AWS::AccountId" }, ":application/", { "Ref": "AdminApplication" }]] }]
+              }
+            }
+          } ]
+        }
+      }
+    },
+
+    "AdminManagersPolicy": {
+      "Type": "AWS::IAM::Policy",
+      "Properties": {
+        "PolicyName": "AdminManagersPolicy",
+        "Groups": [{ "Ref": "ManagersGroupName" }],
+        "PolicyDocument": {
+          "Version" : "2012-10-17",
+          "Statement": [ {
+            "Sid": "ReadOnlyAdminApplicationForThisProject",
+            "Effect": "Allow",
+            "Action": [
+              "elasticbeanstalk:List*",
+              "elasticbeanstalk:Get*",
+              "elasticbeanstalk:Describe*",
+              "ec2:List*",
+              "ec2:Get*",
+              "elasticloadbalancing:List*",
+              "elasticloadbalancing:Get*",
+              "autoscaling:List*",
+              "autoscaling:Get*",
+              "cloudwatch:List*",
+              "cloudwatch:Get*",
+              "s3:List*",
+              "s3:Get*",
+              "sns:List*",
+              "sns:Get*",
+              "cloudformation:List*",
+              "cloudformation:Get*",
+              "rds:List*",
+              "rds:Get*",
+              "sqs:List*",
+              "sqs:Get*",
+              "iam:PassRole"
+            ],
+            "Resource": [
+              "*"
+            ],
+            "Condition": {
+              "StringEquals": {
+                "elasticbeanstalk:InApplication": [{ "Fn::Join": ["", ["arn:aws:elasticbeanstalk:", { "Ref": "AWS::Region" }, ":", { "Ref": "AWS::AccountId" }, ":application/", { "Ref": "AdminApplication" }]] }]
+              }
+            }
+          } ]
+        }
+      }
+    },
+
+    "AdminManagersPolicy": {
+      "Type": "AWS::IAM::Policy",
+      "Properties": {
+        "PolicyName": "AdminManagersPolicy",
+        "Groups": [{ "Ref": "ManagersGroupName" }],
+        "PolicyDocument": {
+          "Version" : "2012-10-17",
+          "Statement": [ {
+            "Sid": "ReadOnlyAdminApplicationForThisProject",
+            "Effect": "Allow",
+            "Action": [
+              "elasticbeanstalk:List*",
+              "elasticbeanstalk:Get*",
+              "elasticbeanstalk:Describe*",
+              "elasticbeanstalk:*ApplicationVersion*",
+              "elasticbeanstalk:*ConfigurationTemplate*",
+              "elasticbeanstalk:*Environment*",
+              "elasticbeanstalk:RestartAppServer",
+              "elasticbeanstalk:ValidateConfigurationSettings",
+              "elasticbeanstalk:CheckDNSAvailability",
+              "ec2:*",
+              "elasticloadbalancing:*",
+              "autoscaling:*",
+              "cloudwatch:*",
+              "s3:*",
+              "sns:*",
+              "cloudformation:*",
+              "rds:*",
+              "sqs:*",
+              "iam:PassRole"
+            ],
+            "Resource": [
+              "*"
+            ],
+            "Condition": {
+              "StringEquals": {
+                "elasticbeanstalk:InApplication": [{ "Fn::Join": ["", ["arn:aws:elasticbeanstalk:", { "Ref": "AWS::Region" }, ":", { "Ref": "AWS::AccountId" }, ":application/", { "Ref": "AdminApplication" }]] }]
+              }
+            }
+          } ]
+        }
+      }
+    }
+  },
+
+  "Outputs": {
+    "AdminURL": {
+      "Description": "URL for the Admin Application",
+      "Value": { 
+        "Fn::Join": ["", ["admin.", { "Ref": "DomainName" }]] 
+      } 
+    }
+  }
+
+}

@@ -12,13 +12,13 @@
     },
     "PublicHostedZoneId": {
       "Description": "The Public Hosted Zone Id of the domain used to host your Chatanoo",
-      "Type": "String",
+      "Type": "AWS::Route53::HostedZone::Id",
       "MinLength": "1",
       "MaxLength": "255"
     },
     "PrivateHostedZoneId": {
       "Description": "The Private Hosted Zone Id of the domain used to host your Chatanoo",
-      "Type": "String",
+      "Type": "AWS::Route53::HostedZone::Id",
       "MinLength": "1",
       "MaxLength": "255"
     },
@@ -57,21 +57,21 @@
     },
 
     "InstanceSecurityGroup": {
-      "Type": "String"
+      "Type": "AWS::EC2::SecurityGroup::Id"
     },
     "KeyName": {
-      "Type": "String"
+      "Type": "AWS::EC2::KeyPair::KeyName"
     },
     "VPCId" : {
-      "Type" : "String",
+      "Type" : "AWS::EC2::VPC::Id",
       "Description" : "The VPC ID to launch the application into."
     },
     "PublicSubnets" : {
-      "Type" : "CommaDelimitedList",
+      "Type" : "List<AWS::EC2::Subnet::Id>",
       "Description" : "A comma-delimited list of public VPC subnets. ELBs will be launched into this subnet."
     },
     "PrivateSubnets" : {
-      "Type" : "CommaDelimitedList",
+      "Type" : "List<AWS::EC2::Subnet::Id>",
       "Description" : "A comma-delimited list of private VPC subnets. Auto Scaling and RDS will be launched into this subnet."
     },
 
@@ -177,6 +177,25 @@
           "SourceSecurityGroupId": {
             "Ref": "InstanceSecurityGroup"
           }
+        }],
+        "Tags": [{
+          "Key": "Name",
+          "Value": { "Fn::Join" : [" ", [{ "Ref" : "ProjectName" }, "Core", "Cache SecurityGroup"]]}
+        }, {
+          "Key": "chatanoo:client",
+          "Value": { "Ref": "ProjectName" }
+        }, {
+          "Key": "chatanoo:project",
+          "Value": "Core"
+        }, {
+          "Key": "chatanoo:environment",
+          "Value": "Production"
+        }, {
+          "Key": "chatanoo:access",
+          "Value": "Private"
+        }, {
+          "Key": "chatanoo:region",
+          "Value": { "Ref": "AWS::Region" }
         }]
       }      
     },  
@@ -212,6 +231,25 @@
           "FromPort": "3306",
           "ToPort": "3306",
           "CidrIp": "0.0.0.0/0"
+        }],
+        "Tags": [{
+          "Key": "Name",
+          "Value": { "Fn::Join" : [" ", [{ "Ref" : "ProjectName" }, "Core", "DB SecurityGroup"]]}
+        }, {
+          "Key": "chatanoo:client",
+          "Value": { "Ref": "ProjectName" }
+        }, {
+          "Key": "chatanoo:project",
+          "Value": "Core"
+        }, {
+          "Key": "chatanoo:environment",
+          "Value": "Production"
+        }, {
+          "Key": "chatanoo:access",
+          "Value": "Private"
+        }, {
+          "Key": "chatanoo:region",
+          "Value": { "Ref": "AWS::Region" }
         }]
       }
     },
@@ -239,6 +277,9 @@
         "DBSubnetGroupName": { "Ref": "DBSubnetGroup" },
         "StorageType": { "Ref": "DBStorageType" },
         "Tags": [{
+          "Key": "Name",
+          "Value": { "Fn::Join": [" ", ["Chatanoo", { "Ref": "ProjectName" }, "Core Database"]] }
+        }, {
           "Key": "chatanoo:client",
           "Value": { "Ref": "ProjectName" }
         }, {
@@ -337,6 +378,11 @@
           "Namespace": "aws:autoscaling:launchconfiguration",
           "OptionName": "InstanceType",
           "Value": { "Ref": "InstanceType" }
+        },
+        {
+          "Namespace": "aws:autoscaling:launchconfiguration",
+          "OptionName": "EC2KeyName",
+          "Value": { "Ref": "KeyName" }
         }],
         "SolutionStackName": "64bit Amazon Linux 2015.03 v1.4.6 running PHP 5.6"
       } 
@@ -402,11 +448,24 @@
       }
     },
 
-    "CoreDNSRecord" : {
+    "CorePublicDNSRecord" : {
       "Type": "AWS::Route53::RecordSet",
       "Properties": {
          "HostedZoneId": { "Ref": "PublicHostedZoneId" },
-         "Comment": "DNS Record for Core",
+         "Comment": "Public DNS Record for Core",
+         "Name": { "Fn::Join": ["", ["core.", { "Ref": "DomainName" }, "."]] } ,
+         "Type": "CNAME",
+         "TTL": "300",
+         "ResourceRecords" : [
+            { "Fn::GetAtt" : [ "CoreEnvironment", "EndpointURL" ] }
+         ]
+      }
+    },
+    "CorePrivateDNSRecord" : {
+      "Type": "AWS::Route53::RecordSet",
+      "Properties": {
+         "HostedZoneId": { "Ref": "PrivateHostedZoneId" },
+         "Comment": "Private DNS Record for Core",
          "Name": { "Fn::Join": ["", ["core.", { "Ref": "DomainName" }, "."]] } ,
          "Type": "CNAME",
          "TTL": "300",
@@ -616,7 +675,7 @@
     "CoreURL": {
       "Description": "URL for the Core Application",
       "Value": { 
-        "Fn::Join": ["", ["cdn.", { "Ref": "DomainName" }]] 
+        "Fn::Join": ["", ["core.", { "Ref": "DomainName" }]] 
       } 
     }
   }

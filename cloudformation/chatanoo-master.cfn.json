@@ -35,10 +35,20 @@
       "Type": "String",
       "Default": "templates/chatanoo-core.cfn.json"
     },
+    "MobileTemplateKey": {
+      "Description": "The key of the template for the Mobile substack",
+      "Type": "String",
+      "Default": "templates/chatanoo-mobile.cfn.json"
+    },
+    "AdminTemplateKey": {
+      "Description": "The key of the template for the Admin substack",
+      "Type": "String",
+      "Default": "templates/chatanoo-admin.cfn.json"
+    },
 
     "KeyName": {
       "Description": "Name of an existing EC2 KeyPair to enable SSH access to the Elastic Beanstalk and Bastion hosts",
-      "Type": "String",
+      "Type": "AWS::EC2::KeyPair::KeyName",
       "MinLength": "1",
       "MaxLength": "255",
       "AllowedPattern": "[\\x20-\\x7E]*",
@@ -69,13 +79,13 @@
     },
     "VPCAvailabilityZone1": {
       "Description": "One of two Availability Zones that will be used to create subnets.",
-      "Type": "String",
+      "Type": "AWS::EC2::AvailabilityZone::Name",
       "MinLength": "1",
       "MaxLength": "255"
     },
     "VPCAvailabilityZone2": {
       "Description": "Two of two Availability Zones that will be used to create subnets. Must be different than VPCAvailabilityZone2.",
-      "Type": "String",
+      "Type": "AWS::EC2::AvailabilityZone::Name",
       "MinLength": "1",
       "MaxLength": "255"
     },
@@ -132,6 +142,8 @@
         "Parameters" : {
           "DomainName": { "Ref" : "Domain" },
           "VPCId": { "Fn::GetAtt" : [ "VPCScaffold", "Outputs.VPCId" ]},
+          "NATIPAddress": { "Fn::GetAtt" : [ "VPCScaffold", "Outputs.NATIPAddress" ]},
+          "BastionIPAddress": { "Fn::GetAtt" : [ "VPCScaffold", "Outputs.BastionIPAddress" ]},
           "ProjectName": { "Ref" : "AWS::StackName" },
           "AdministratorsGroupName": { "Fn::GetAtt" : [ "IAMScaffold", "Outputs.AdministratorsGroupName" ]},
           "ManagersGroupName": { "Fn::GetAtt" : [ "IAMScaffold", "Outputs.ManagersGroupName" ]},
@@ -146,6 +158,7 @@
         "Parameters" : {
           "DomainName": { "Ref" : "Domain" },
           "PublicHostedZoneId": { "Fn::GetAtt" : [ "Route53", "Outputs.PublicHostedZoneId" ]},
+          "PrivateHostedZoneId": { "Fn::GetAtt" : [ "Route53", "Outputs.PrivateHostedZoneId" ]},
           "ProjectName": { "Ref" : "AWS::StackName" },
           "AdministratorsGroupName": { "Fn::GetAtt" : [ "IAMScaffold", "Outputs.AdministratorsGroupName" ]},
           "ManagersGroupName": { "Fn::GetAtt" : [ "IAMScaffold", "Outputs.ManagersGroupName" ]},
@@ -173,6 +186,49 @@
           "DevelopersGroupName": { "Fn::GetAtt" : [ "IAMScaffold", "Outputs.DevelopersGroupName" ]}
         }
       }
+    },
+    "Mobile" : {
+      "Type" : "AWS::CloudFormation::Stack",
+      "Properties" : {
+        "TemplateURL" : { "Fn::Join" : ["", [ "http://", { "Ref" : "CloudFormationBucket" }, ".s3.amazonaws.com/", { "Ref" : "MobileTemplateKey" }]]},
+        "Parameters" : {
+          "DomainName": { "Ref" : "Domain" },
+          "PublicHostedZoneId": { "Fn::GetAtt" : [ "Route53", "Outputs.PublicHostedZoneId" ]},
+          "PrivateHostedZoneId": { "Fn::GetAtt" : [ "Route53", "Outputs.PrivateHostedZoneId" ]},
+          "ProjectName": { "Ref" : "AWS::StackName" },
+          "KeyName": { "Ref" : "KeyName" },
+          "VPCId": { "Fn::GetAtt" : [ "VPCScaffold", "Outputs.VPCId" ]},
+          "InstanceSecurityGroup": { "Fn::GetAtt" : [ "VPCScaffold", "Outputs.InstanceSecurityGroup" ]},
+          "PublicSubnets": { "Fn::Join": [",", [{ "Fn::GetAtt" : [ "VPCScaffold", "Outputs.PublicSubnet1" ]}, { "Fn::GetAtt" : [ "VPCScaffold", "Outputs.PublicSubnet2" ]}]]},
+          "PrivateSubnets": { "Fn::Join": [",", [{ "Fn::GetAtt" : [ "VPCScaffold", "Outputs.PrivateSubnet1" ]}, { "Fn::GetAtt" : [ "VPCScaffold", "Outputs.PrivateSubnet2" ]}]]},
+          "CoreURL": { "Fn::GetAtt" : [ "Core", "Outputs.CoreURL" ]},
+          "AdministratorsGroupName": { "Fn::GetAtt" : [ "IAMScaffold", "Outputs.AdministratorsGroupName" ]},
+          "ManagersGroupName": { "Fn::GetAtt" : [ "IAMScaffold", "Outputs.ManagersGroupName" ]},
+          "DevelopersGroupName": { "Fn::GetAtt" : [ "IAMScaffold", "Outputs.DevelopersGroupName" ]}
+        }
+      }
+    },
+    "Admin" : {
+      "Type" : "AWS::CloudFormation::Stack",
+      "Properties" : {
+        "TemplateURL" : { "Fn::Join" : ["", [ "http://", { "Ref" : "CloudFormationBucket" }, ".s3.amazonaws.com/", { "Ref" : "AdminTemplateKey" }]]},
+        "Parameters" : {
+          "DomainName": { "Ref" : "Domain" },
+          "PublicHostedZoneId": { "Fn::GetAtt" : [ "Route53", "Outputs.PublicHostedZoneId" ]},
+          "PrivateHostedZoneId": { "Fn::GetAtt" : [ "Route53", "Outputs.PrivateHostedZoneId" ]},
+          "ProjectName": { "Ref" : "AWS::StackName" },
+          "KeyName": { "Ref" : "KeyName" },
+          "VPCId": { "Fn::GetAtt" : [ "VPCScaffold", "Outputs.VPCId" ]},
+          "InstanceSecurityGroup": { "Fn::GetAtt" : [ "VPCScaffold", "Outputs.InstanceSecurityGroup" ]},
+          "PublicSubnets": { "Fn::Join": [",", [{ "Fn::GetAtt" : [ "VPCScaffold", "Outputs.PublicSubnet1" ]}, { "Fn::GetAtt" : [ "VPCScaffold", "Outputs.PublicSubnet2" ]}]]},
+          "PrivateSubnets": { "Fn::Join": [",", [{ "Fn::GetAtt" : [ "VPCScaffold", "Outputs.PrivateSubnet1" ]}, { "Fn::GetAtt" : [ "VPCScaffold", "Outputs.PrivateSubnet2" ]}]]},
+          "CoreURL": { "Fn::GetAtt" : [ "Core", "Outputs.CoreURL" ]},
+          "MobileURL": { "Fn::GetAtt" : [ "Mobile", "Outputs.MobileURL" ]},
+          "AdministratorsGroupName": { "Fn::GetAtt" : [ "IAMScaffold", "Outputs.AdministratorsGroupName" ]},
+          "ManagersGroupName": { "Fn::GetAtt" : [ "IAMScaffold", "Outputs.ManagersGroupName" ]},
+          "DevelopersGroupName": { "Fn::GetAtt" : [ "IAMScaffold", "Outputs.DevelopersGroupName" ]}
+        }
+      }
     }
   },
 
@@ -187,6 +243,18 @@
       "Description": "URL for the Core Application",
       "Value": { 
         "Fn::GetAtt" : [ "Core", "Outputs.CoreURL" ]
+      }
+    },
+    "MobileURL": {
+      "Description": "URL for the Mobile Application",
+      "Value": { 
+        "Fn::GetAtt" : [ "Mobile", "Outputs.MobileURL" ]
+      }
+    },
+    "AdminURL": {
+      "Description": "URL for the Admin Application",
+      "Value": { 
+        "Fn::GetAtt" : [ "Admin", "Outputs.AdminURL" ]
       }
     }
   }
