@@ -181,8 +181,8 @@
         "ApplicationName": { "Ref": "MobileApplication"},
         "Description": "Initial Version",
         "SourceBundle": { 
-          "S3Bucket" : "elasticbeanstalk-eu-west-1-175828319502",
-          "S3Key" : "chatanoo-mobile/7006.zip"
+          "S3Bucket" : "chatanoo-cloudformation",
+          "S3Key" : "build/chatanoo-mobile.zip"
         }
       }
     },

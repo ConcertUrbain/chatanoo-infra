@@ -1,0 +1,473 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+
+  "Description": "Create Chatanoo Medias Center",
+
+  "Parameters": {
+    "DomainName": {
+      "Description": "The name of the domain used to host your Chatanoo",
+      "Type": "String",
+      "MinLength": "1",
+      "MaxLength": "255"
+    },
+    "PublicHostedZoneId": {
+      "Description": "The Public Hosted Zone Id of the domain used to host your Chatanoo",
+      "Type": "AWS::Route53::HostedZone::Id",
+      "MinLength": "1",
+      "MaxLength": "255"
+    },
+    "PrivateHostedZoneId": {
+      "Description": "The Private Hosted Zone Id of the domain used to host your Chatanoo",
+      "Type": "AWS::Route53::HostedZone::Id",
+      "MinLength": "1",
+      "MaxLength": "255"
+    },
+
+    "ProjectName": {
+      "Description": "The name of the Chatanoo Project that will be used to tag all resources",
+      "Type": "String",
+      "Default": "Default"
+    },
+    "AdministratorsGroupName": {
+      "Description": "Administrators Group Name in IAM",
+      "Type": "String",
+      "Default": "Default"
+    },
+    "ManagersGroupName": {
+      "Description": "Managers Group Name in IAM",
+      "Type": "String",
+      "Default": "Default"
+    },
+    "DevelopersGroupName": {
+      "Description": "Developers Group Name in IAM",
+      "Type": "String",
+      "Default": "Default"
+    }
+  },
+
+  "Mappings": {
+
+  },
+
+  "Resources": {
+
+    "MCInputBucket": {
+      "Type" : "AWS::S3::Bucket",
+      "CorsConfiguration": {
+        "CorsRules": [{
+          "AllowedHeaders": [ "*" ],
+          "AllowedMethods": [ "GET", "HEAD", "PUT", "POST", "DELETE" ],
+          "AllowedOrigins": [ "*" ],
+          "ExposedHeaders": [ "ETag", "x-amz-meta-custom-header" ],
+          "MaxAge": 3000
+        }]
+      },
+      "Properties" : {
+        "Tags": [{
+          "Key": "chatanoo:client",
+          "Value": { "Ref": "ProjectName" }
+        }, {
+          "Key": "chatanoo:project",
+          "Value": "MediasCenter"
+        }, {
+          "Key": "chatanoo:environment",
+          "Value": "Production"
+        }, {
+          "Key": "chatanoo:access",
+          "Value": "Public"
+        }, {
+          "Key": "chatanoo:region",
+          "Value": { "Ref": "AWS::Region" }
+        }]
+      }
+    },
+  },
+
+  "MCOutputBucket": {
+      "Type" : "AWS::S3::Bucket",
+      "CorsConfiguration": {
+        "CorsRules": [{
+          "AllowedHeaders": [ "Authorization" ],
+          "AllowedMethods": [ "GET" ],
+          "AllowedOrigins": [ "*" ],
+          "MaxAge": 3000
+        }]
+      },
+      "Properties" : {
+        "Tags": [{
+          "Key": "chatanoo:client",
+          "Value": { "Ref": "ProjectName" }
+        }, {
+          "Key": "chatanoo:project",
+          "Value": "MediasCenter"
+        }, {
+          "Key": "chatanoo:environment",
+          "Value": "Production"
+        }, {
+          "Key": "chatanoo:access",
+          "Value": "Public"
+        }, {
+          "Key": "chatanoo:region",
+          "Value": { "Ref": "AWS::Region" }
+        }]
+      }
+    },
+
+    "MCCloudFrontDistribution": {
+      "Type" : "AWS::CloudFront::Distribution",
+      "Properties" : {
+        "DistributionConfig" : {
+          "Origins" : [ {
+            "DomainName": { "Fn::Join": ["", [{ "Ref": "MCOutputBucket" }, ".s3.amazonaws.com"]] },
+            "Id" : { "Fn::Join": ["-", ["MCS3Origin", { "Ref": "MCOutputBucket" }]] },
+            "S3OriginConfig" : {
+              "OriginAccessIdentity" : ""
+            }
+          }],
+          "Enabled" : "true",
+          "Comment" : { "Fn::Join": [" ", ["Chatanoo", { "Ref": "ProjectName" }, " distribution for Medias Center"]] },
+          "Aliases" : [ 
+            { "Fn::Join": ["", ["mc.", { "Ref": "DomainName" }]] } 
+          ],
+          "DefaultCacheBehavior" : {
+            "AllowedMethods" : [ "GET", "HEAD" ],  
+            "TargetOriginId" : { "Fn::Join": ["-", ["MCS3Origin", { "Ref": "MCOutputBucket" }]] },
+            "ForwardedValues" : {
+              "QueryString" : "false",
+              "Cookies" : { "Forward" : "none" }
+            },
+            "ViewerProtocolPolicy" : "allow-all"
+          }
+        }
+      }
+    },
+
+    "MCS3UploaderRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [{
+            "Sid": "",
+            "Effect": "Allow",
+            "Principal": {
+              "Federated": "cognito-identity.amazonaws.com"
+            },
+            "Action": "sts:AssumeRoleWithWebIdentity",
+            "Condition": {
+              "StringEquals": {
+                "cognito-identity.amazonaws.com:aud": "eu-west-1:b263aeab-02ae-4268-b338-95e7ea79e255"
+              }
+            }
+          }]
+        },
+        "Path": "/",
+        "Policies": [ {
+          "PolicyName": "root",
+          "PolicyDocument": {
+            "Version" : "2012-10-17",
+            "Statement": [ {
+              "Effect": "Allow",
+              "Action": [
+                "s3:PutObject"
+              ],
+              "Resource": [
+                { "Fn::Join": ["", ["arn:aws:s3:::", { "Ref": "MCInputBucket" }]] }
+              ]
+            } ]
+          }
+        } ]
+      }
+    },
+
+    "MCTranscoderRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [{
+            "Version": "2012-10-17",
+            "Statement": [
+              {
+                "Sid": "",
+                "Effect": "Allow",
+                "Principal": {
+                  "Service": "elastictranscoder.amazonaws.com"
+                },
+                "Action": "sts:AssumeRole"
+              }
+            ]
+          }]
+        },
+        "Path": "/",
+        "Policies": [ {
+          "PolicyName": "root",
+          "PolicyDocument": {
+            "Version" : "2012-10-17",
+            "Statement": [ {
+              "Effect": "Allow",
+              "Action": [
+                "s3:ListBucket",
+                "s3:Get*",
+                "s3:*MultipartUpload*"
+              ],
+              "Resource": [
+                { "Fn::Join": ["", ["arn:aws:s3:::", { "Ref": "MCInputBucket" }]] }
+              ]
+            }, {
+              "Effect": "Allow",
+              "Action": [
+                "s3:ListBucket",
+                "s3:Get*",
+                "s3:Put*",
+                "s3:*MultipartUpload*"
+              ],
+              "Resource": [
+                { "Fn::Join": ["", ["arn:aws:s3:::", { "Ref": "MCOutputBucket" }]] }
+              ]
+            } ]
+          }
+        } ]
+      }
+    },
+
+    "MCLambdaTranscoderRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [{
+            "Version": "2012-10-17",
+            "Statement": [
+              {
+                "Sid": "",
+                "Effect": "Allow",
+                "Principal": {
+                  "Service": "elastictranscoder.amazonaws.com"
+                },
+                "Action": "sts:AssumeRole"
+              }
+            ]
+          }]
+        },
+        "Path": "/",
+        "Policies": [ {
+          "PolicyName": "root",
+          "PolicyDocument": {
+            "Version" : "2012-10-17",
+            "Statement": [ {
+              "Effect": "Allow",
+              "Action": [
+                "s3:ListBucket",
+                "s3:Get*",
+                "s3:*MultipartUpload*"
+              ],
+              "Resource": [
+                { "Fn::Join": ["", ["arn:aws:s3:::", { "Ref": "MCInputBucket" }]] }
+              ]
+            }, {
+              "Effect": "Allow",
+              "Action": [
+                "logs:*"
+              ],
+              "Resource": "arn:aws:logs:*:*:*"
+            }, {
+              "Effect": "Allow",
+              "Action": [
+                "elastictranscoder:CreateJob"
+              ],
+              "Resource":  "*"
+            } ]
+          }
+        } ]
+      }
+    },
+
+    "MCMediasTranscoder": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "Code": {
+          "S3Bucket": "chatanoo-cloudformation",
+          "S3Key": "build/chatanoo-lambda.zip"
+        },
+        "Description": { "Fn::Join": [" ", ["Chatanoo", { "Ref": "ProjectName" }, "MediasTranscoder"]] },
+        "Handler": "transcoder/index.handler",
+        "MemorySize": "128",
+        "Role": { "Fn::GetAtt": ["MCTranscoderRole", "Arn"] },
+        "Runtime": "nodejs",
+        "Timeout": "25"
+      }
+    },
+
+    "MCPublicDNSRecord" : {
+      "Type": "AWS::Route53::RecordSet",
+      "Properties": {
+         "HostedZoneId": { "Ref": "PublicHostedZoneId" },
+         "Comment": "Public DNS Record for Medias Center",
+         "Name": { "Fn::Join": ["", ["mc.", { "Ref": "DomainName" }, "."]] } ,
+         "Type": "CNAME",
+         "TTL": "300",
+         "ResourceRecords" : [
+            { "Fn::GetAtt" : [ "MCCloudFrontDistribution", "DomainName" ] }
+         ]
+      }
+    },
+    "MCPrivateDNSRecord" : {
+      "Type": "AWS::Route53::RecordSet",
+      "Properties": {
+         "HostedZoneId": { "Ref": "PrivateHostedZoneId" },
+         "Comment": "Private DNS Record for Medias Center",
+         "Name": { "Fn::Join": ["", ["mc.", { "Ref": "DomainName" }, "."]] } ,
+         "Type": "CNAME",
+         "TTL": "300",
+         "ResourceRecords" : [
+            { "Fn::GetAtt" : [ "MCCloudFrontDistribution", "DomainName" ] }
+         ]
+      }
+    },
+    
+    "MCAdministratorsPolicy": {
+      "Type": "AWS::IAM::Policy",
+      "Properties": {
+        "PolicyName": "MCAdministratorsPolicy",
+        "Groups": [{ "Ref": "AdministratorsGroupName" }],
+        "PolicyDocument": {
+          "Version" : "2012-10-17",
+          "Statement": [ {
+            "Sid": "FullAccessMCOutputBucketForThisProject",
+            "Effect": "Allow",
+            "Action": [
+              "s3:*"
+            ],
+            "Resource": [
+              { "Fn::Join": ["", ["arn:aws:s3:::", { "Ref": "MCOutputBucket" }]] }
+            ]
+          }, {
+            "Sid": "FullAccessMCInputBucketForThisProject",
+            "Effect": "Allow",
+            "Action": [
+              "s3:*"
+            ],
+            "Resource": [
+              { "Fn::Join": ["", ["arn:aws:s3:::", { "Ref": "MCInputBucket" }]] }
+            ]
+          }, {
+            "Sid": "FullAccessMCDistributionForThisProject",
+            "Effect": "Allow",
+            "Action": [
+              "cloudfront:*"
+            ],
+            "Resource": [
+              "*"
+            ]
+          } ]
+        }
+      }
+    },
+
+    "MCManagersPolicy": {
+      "Type": "AWS::IAM::Policy",
+      "Properties": {
+        "PolicyName": "MCManagersPolicy",
+        "Groups": [{ "Ref": "ManagersGroupName" }],
+        "PolicyDocument": {
+          "Version" : "2012-10-17",
+          "Statement": [ {
+            "Sid": "ReadOnlyMCOutputBucketForThisProject",
+            "Effect": "Allow",
+            "Action": [
+              "s3:List*",
+              "s3:Get*"
+            ],
+            "Resource": [
+              { "Fn::Join": ["", ["arn:aws:s3:::", { "Ref": "MCOutputBucket" }]] }
+            ]
+          }, {
+            "Sid": "ReadOnlyMCInputBucketForThisProject",
+            "Effect": "Allow",
+            "Action": [
+              "s3:List*",
+              "s3:Get*"
+            ],
+            "Resource": [
+              { "Fn::Join": ["", ["arn:aws:s3:::", { "Ref": "MCInputBucket" }]] }
+            ]
+          }, {
+            "Sid": "ReadOnlyMCDistributionForThisProject",
+            "Effect": "Allow",
+            "Action": [
+              "cloudfront:List*",
+              "cloudfront:Get*"
+            ],
+            "Resource": [
+              "*"
+            ]
+          } ]
+        }
+      }
+    },
+
+    "MCManagersPolicy": {
+      "Type": "AWS::IAM::Policy",
+      "Properties": {
+        "PolicyName": "MCManagersPolicy",
+        "Groups": [{ "Ref": "ManagersGroupName" }],
+        "PolicyDocument": {
+          "Version" : "2012-10-17",
+          "Statement": [ {
+            "Sid": "ReadAndWriteMCOutputBucketForThisProject",
+            "Effect": "Allow",
+            "Action": [
+              "s3:List*",
+              "s3:Get*",
+              "s3:*Object*"
+            ],
+            "Resource": [
+              { "Fn::Join": ["", ["arn:aws:s3:::", { "Ref": "MCOutputBucket" }]] }
+            ]
+          }, {
+            "Sid": "ReadAndWriteMCInputBucketForThisProject",
+            "Effect": "Allow",
+            "Action": [
+              "s3:List*",
+              "s3:Get*",
+              "s3:*Object*"
+            ],
+            "Resource": [
+              { "Fn::Join": ["", ["arn:aws:s3:::", { "Ref": "MCInputBucket" }]] }
+            ]
+          }, {
+            "Sid": "ReadOnlyMCDistributionForThisProject",
+            "Effect": "Allow",
+            "Action": [
+              "cloudfront:List*",
+              "cloudfront:Get*"
+            ],
+            "Resource": [
+              "*"
+            ]
+          } ]
+        }
+      }
+    }
+
+  },
+
+  "Outputs": {
+    "MCInputBucket": {
+      "Description": "The input bucket for medias",
+      "Value": { "Ref": "MCInputBucket" } 
+    },
+    "MCOutputBucket": {
+      "Description": "The output bucket for medias",
+      "Value": { "Ref": "MCOutputBucket" } 
+    },
+    "MCURL": {
+      "Description": "The Medias Center URL to get the medias",
+      "Value": { 
+        "Fn::Join": ["", ["mc.", { "Ref": "DomainName" }]] 
+      } 
+    }
+  }
+
+}

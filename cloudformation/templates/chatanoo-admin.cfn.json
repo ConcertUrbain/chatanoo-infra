@@ -187,8 +187,8 @@
         "ApplicationName": { "Ref": "AdminApplication"},
         "Description": "Initial Version",
         "SourceBundle": { 
-          "S3Bucket" : "elasticbeanstalk-eu-west-1-175828319502",
-          "S3Key" : "chatanoo-admin/47fb.zip"
+          "S3Bucket" : "chatanoo-cloudformation",
+          "S3Key" : "build/chatanoo-admin.zip"
         }
       }
     },

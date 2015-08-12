@@ -394,8 +394,8 @@
         "ApplicationName": { "Ref": "CoreApplication"},
         "Description": "Initial Version",
         "SourceBundle": { 
-          "S3Bucket" : "elasticbeanstalk-eu-west-1-175828319502",
-          "S3Key" : "chatanoo-core/9bcb.zip"
+          "S3Bucket" : "chatanoo-cloudformation",
+          "S3Key" : "build/chatanoo-core.zip"
         }
       }
     },
